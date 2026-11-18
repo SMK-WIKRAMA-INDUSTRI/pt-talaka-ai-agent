@@ -29,6 +29,7 @@ import {
   Layers,
 } from 'lucide-react';
 import ShoeShowcase from './ShoeShowcase';
+import talaKedip from '../assets/ekspresi/tala-kedip.svg';
 
 /* ─────────────────────────────────────────────────────────────
    20 CALIBRATED NODE CABLES (High-Tech Color Palette with Mocca Accents)
@@ -182,10 +183,10 @@ export default function LandingPage({ onScrollToChat, onSelectSamplePrompt }) {
       {/* ═══════════════════════════ 1. NAVBAR (High-Tech Floating Pill) ═══════════════════════════ */}
       <header className="sticky top-4 z-50 mx-auto max-w-5xl px-4 sm:px-6">
         <nav className="flex items-center justify-between rounded-full border border-slate-200/90 bg-white/85 px-4 py-2.5 shadow-sm backdrop-blur-xl">
-          {/* Brand Logo with Tech Core */}
+          {/* Brand Logo with Tala Kedip */}
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white font-bold text-sm shadow-md shadow-slate-900/10">
-              T
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-slate-200/90 overflow-hidden shadow-xs p-0.5">
+              <img src={talaKedip} alt="Talaka Mascot Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-sm tracking-tight text-slate-900">
@@ -392,13 +393,13 @@ export default function LandingPage({ onScrollToChat, onSelectSamplePrompt }) {
                   </div>
                 </div>
 
-                {/* Static center Talaka Neural Core */}
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-5 sm:bottom-7 flex flex-col items-center z-30">
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-900/25 border-2 border-white ring-4 ring-slate-100 hover:scale-110 transition-transform">
-                      <Shirt className="h-7 w-7 text-white" />
+                {/* Static center Talaka Neural Core (Tepat di Tengah Lingkaran Roda) */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-30 pointer-events-auto">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white shadow-2xl shadow-slate-900/10 border-2 border-slate-200 ring-4 ring-slate-100 hover:scale-110 transition-transform overflow-hidden p-1.5">
+                      <img src={talaKedip} alt="Tala Core Logo" className="w-full h-full object-contain" />
                     </div>
-                    <span className="mt-0.5 text-[10px] font-black tracking-wider text-slate-900 bg-white/95 backdrop-blur-md px-3 py-0.5 rounded-full border border-slate-200 shadow-xs flex items-center gap-1 font-mono">
+                    <span className="text-[10px] font-black tracking-wider text-slate-900 bg-white/95 backdrop-blur-md px-3 py-0.5 rounded-full border border-slate-200 shadow-xs flex items-center gap-1 font-mono">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       TALAKA_CORE
                     </span>
@@ -688,27 +689,7 @@ export default function LandingPage({ onScrollToChat, onSelectSamplePrompt }) {
               </div>
             </div>
 
-            {/* Card 4: Multi Logistics & COD API */}
-            <div className="rounded-3xl border border-slate-200/90 bg-slate-50/70 p-7 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-white border border-slate-200/80 p-3.5 space-y-2 text-xs shadow-2xs">
-                  <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 font-mono text-[11px]">
-                    <span className="font-semibold text-slate-800">COURIER: JNE / J&amp;T / SICEPAT</span>
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                  <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 font-mono text-[11px]">
-                    <span className="font-semibold text-slate-800">PAYMENT: COD (BAYAR DI TEMPAT)</span>
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                </div>
-                <h3 className="text-base font-bold text-slate-900">Dukungan COD &amp; Multi Kurir</h3>
-                <p className="text-xs text-slate-600 leading-relaxed font-normal">
-                  Menjelaskan aturan COD (Jabodetabek &amp; Bandung) serta syarat gratis ongkir secara transparan.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 5: High Conversion Checkout */}
+            {/* Card 4: High Conversion Checkout */}
             <div className="rounded-3xl border border-slate-200/90 bg-slate-50/70 p-7 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="rounded-2xl bg-white border border-slate-200/80 p-3 text-xs space-y-1.5 shadow-2xs">
@@ -731,8 +712,8 @@ export default function LandingPage({ onScrollToChat, onSelectSamplePrompt }) {
               </div>
             </div>
 
-            {/* Card 6: High-Tech Callout Terminal Card */}
-            <div className="rounded-3xl border border-slate-800 bg-slate-900 text-white p-7 shadow-xl flex flex-col justify-between">
+            {/* Card 5: High-Tech Callout Terminal Card */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900 text-white p-7 shadow-xl flex flex-col justify-between md:col-span-2">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold bg-white/10 text-emerald-400 border border-white/10">
