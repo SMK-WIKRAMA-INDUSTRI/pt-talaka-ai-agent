@@ -27,7 +27,7 @@ function parseInlineFormatting(text, keyPrefix) {
       parts.push(
         <code
           key={`${keyPrefix}-c-${idx++}`}
-          className="rounded bg-stone-100 px-1 py-0.5 font-mono text-[12px]"
+          className="rounded-md bg-slate-100 border border-slate-200 px-1.5 py-0.5 font-mono text-[11.5px] text-slate-800"
         >
           {token.slice(1, -1)}
         </code>
