@@ -27,36 +27,79 @@ import {
   Cpu,
   Activity,
   Layers,
+  Star,
+  Tag,
+  Camera,
+  Palette,
+  Search,
+  Gift,
+  MapPin,
+  Headphones,
+  BarChart2,
+  Lock,
+  Bell,
+  Compass,
+  Flame,
 } from 'lucide-react';
 import ShoeShowcase from './ShoeShowcase';
 import ProductCatalogSection from './ProductCatalogSection';
 import OmnichannelSection from './OmnichannelSection';
 import talaKedip from '../assets/ekspresi/tala-kedip.svg';
+import { GlyphBackground } from './ui/backgrounds-glyph';
 
 /* ─────────────────────────────────────────────────────────────
-   20 CALIBRATED NODE CABLES (High-Tech Color Palette with Mocca Accents)
+   45 CALIBRATED HIGH-TECH VIBRANT NODE CABLES (Full-Canvas Edge-to-Edge)
    ───────────────────────────────────────────────────────────── */
 const cablesData = [
-  { id: 'pdf',      name: 'Invoice & Resi Transaksi',  color: '#9E7B66', origIndex: 4,  bx: 188,  by: 454.8, r: 18, tx: 275,   ty: 472.2, phi_t: -2.9322, ampX: 2,   ampY: 3,   freqX: 1.1,  freqY: 0.9,  phase: 0,    },
-  { id: 'sheets',   name: 'Grafik Omset & Stok',       color: '#10B981', origIndex: 3,  bx: 120,  by: 384,   r: 20, tx: 284.2, ty: 440.5, phi_t: -2.7889, ampX: 2.8, ampY: 3.9, freqX: 1.25, freqY: 1.1,  phase: 0.45, },
-  { id: 'd2l',      name: 'Toko Retail & Butik',       color: '#0F172A', origIndex: 2,  bx: 46,   by: 275.6, r: 26, tx: 297.7, ty: 410.5, phi_t: -2.6456, ampX: 3.6, ampY: 4.8, freqX: 1.4,  freqY: 1.3,  phase: 0.9,  },
-  { id: 'health',   name: 'Garansi & UU PDP',          color: '#6366F1', origIndex: 5,  bx: 226,  by: 286.4, r: 16, tx: 315.4, ty: 382.8, phi_t: -2.5023, ampX: 2,   ampY: 5.7, freqX: 1.55, freqY: 1.5,  phase: 1.35, },
-  { id: 'gmail',    name: 'Customer Support 24/7',     color: '#0EA5E9', origIndex: 0,  bx: 72,   by: 136.4, r: 22, tx: 336.9, ty: 357.8, phi_t: -2.359,  ampX: 2.8, ampY: 3,   freqX: 1.7,  freqY: 0.9,  phase: 1.8,  },
-  { id: 'drive',    name: 'Manajemen Bisnis',          color: '#9E7B66', origIndex: 1,  bx: 140,  by: 61.6,  r: 20, tx: 361.8, ty: 336.2, phi_t: -2.2156, ampX: 3.6, ampY: 3.9, freqX: 1.1,  freqY: 1.1,  phase: 2.25, },
-  { id: 'canvas',   name: 'Keranjang & Checkout',      color: '#F59E0B', origIndex: 6,  bx: 224,  by: 96.8,  r: 24, tx: 389.4, ty: 318.3, phi_t: -2.0723, ampX: 2,   ampY: 4.8, freqX: 1.25, freqY: 1.3,  phase: 2.7,  },
-  { id: 'code',     name: 'Pesanan Mobile',            color: '#0F172A', origIndex: 8,  bx: 376,  by: 161.6, r: 16, tx: 419.4, ty: 304.6, phi_t: -1.929,  ampX: 2.8, ampY: 5.7, freqX: 1.4,  freqY: 1.5,  phase: 3.15, },
-  { id: 'notion',   name: 'Basis Pengetahuan FAQ',     color: '#64748B', origIndex: 7,  bx: 340,  by: 40.8,  r: 20, tx: 450.9, ty: 295.3, phi_t: -1.7857, ampX: 3.6, ampY: 3,   freqX: 1.55, freqY: 0.9,  phase: 3.6,  },
-  { id: 'sparkle',  name: 'Fitur Pintar Fashion',      color: '#9E7B66', origIndex: 10, bx: 446,  by: 88.8,  r: 16, tx: 483.5, ty: 290.6, phi_t: -1.6424, ampX: 2,   ampY: 3.9, freqX: 1.7,  freqY: 1.1,  phase: 4.05, },
-  { id: 'gpt',      name: 'AI Brain Talaka',           color: '#0F172A', origIndex: 9,  bx: 498,  by: 38.4,  r: 28, tx: 516.5, ty: 290.6, phi_t: -1.4991, ampX: 2.8, ampY: 4.8, freqX: 1.1,  freqY: 1.3,  phase: 4.5,  },
-  { id: 'gemini',   name: 'Panduan Ukuran TB/BB',      color: '#2563EB', origIndex: 11, bx: 602,  by: 63.6,  r: 22, tx: 549.1, ty: 295.3, phi_t: -1.3558, ampX: 3.6, ampY: 5.7, freqX: 1.25, freqY: 1.5,  phase: 4.95, },
-  { id: 'claude',   name: 'Rating Bintang 5',          color: '#D97706', origIndex: 12, bx: 704,  by: 55.2,  r: 24, tx: 580.6, ty: 304.6, phi_t: -1.2125, ampX: 2,   ampY: 3,   freqX: 1.4,  freqY: 0.9,  phase: 5.4,  },
-  { id: 'discord',  name: 'Teman Ngobrol Gaya',        color: '#8B5CF6', origIndex: 13, bx: 658,  by: 184.4, r: 18, tx: 610.6, ty: 318.3, phi_t: -1.0692, ampX: 2.8, ampY: 3.9, freqX: 1.55, freqY: 1.1,  phase: 5.85, },
-  { id: 'teams',    name: 'Kebijakan Tukar Ukuran',    color: '#059669', origIndex: 14, bx: 792,  by: 115.6, r: 22, tx: 638.2, ty: 336.2, phi_t: -0.9259, ampX: 3.6, ampY: 4.8, freqX: 1.7,  freqY: 1.3,  phase: 6.3,  },
-  { id: 'deepseek', name: 'Rekomendasi Akurat',        color: '#0F172A', origIndex: 15, bx: 902,  by: 63.6,  r: 22, tx: 663.1, ty: 357.8, phi_t: -0.7826, ampX: 2,   ampY: 5.7, freqX: 1.1,  freqY: 1.5,  phase: 6.75, },
-  { id: 'slack',    name: 'Ekspedisi Kilat & COD',     color: '#EA580C', origIndex: 16, bx: 850,  by: 248.8, r: 20, tx: 684.6, ty: 382.8, phi_t: -0.6393, ampX: 2.8, ampY: 3,   freqX: 1.25, freqY: 0.9,  phase: 7.2,  },
-  { id: 'hubspot',  name: 'Voucher & Diskon Promo',    color: '#9E7B66', origIndex: 17, bx: 942,  by: 323.6, r: 22, tx: 702.3, ty: 410.5, phi_t: -0.496,  ampX: 3.6, ampY: 3.9, freqX: 1.4,  freqY: 1.1,  phase: 7.65, },
-  { id: 'figma',    name: 'Katalog Koleksi Busana',    color: '#A855F7', origIndex: 18, bx: 768,  by: 413.2, r: 18, tx: 715.8, ty: 440.5, phi_t: -0.3527, ampX: 2,   ampY: 4.8, freqX: 1.55, freqY: 1.3,  phase: 8.1,  },
-  { id: 'web',      name: 'Website Toko Fashion',      color: '#0F172A', origIndex: 19, bx: 888,  by: 444.4, r: 18, tx: 725,   ty: 472.2, phi_t: -0.2094, ampX: 2.8, ampY: 5.7, freqX: 1.7,  freqY: 1.5,  phase: 8.55, },
+  /* ── LEFT SIDE (From bottom to top, phi_t from -3.08 to -1.60) ── */
+  { id: 'truck',    name: 'Ekspedisi Kilat & COD',     color: '#F97316', origIndex: 19, bx: 70,   by: 442, r: 20, tx: 471, ty: 506, phi_t: -3.08, ampX: 2.5, ampY: 3.1, freqX: 1.3, freqY: 1.0, phase: 0.1, },
+  { id: 'mappin',   name: 'Lokasi Kurir Pengiriman',   color: '#EF4444', origIndex: 15, bx: 28,   by: 343, r: 18, tx: 472, ty: 499, phi_t: -3.05, ampX: 2.2, ampY: 3.5, freqX: 1.5, freqY: 1.2, phase: 0.3, },
+  { id: 'compass',  name: 'Panduan Rekomendasi Gaya',  color: '#2563EB', origIndex: 20, bx: 238,  by: 432, r: 18, tx: 473, ty: 483, phi_t: -2.98, ampX: 2.8, ampY: 3.2, freqX: 1.4, freqY: 1.1, phase: 0.6, },
+  { id: 'bell',     name: 'Notifikasi Pesanan Kilat',  color: '#F59E0B', origIndex: 0,  bx: 14,   by: 31,  r: 18, tx: 475, ty: 476, phi_t: -2.95, ampX: 2.6, ampY: 3.6, freqX: 1.4, freqY: 1.1, phase: 0.8, },
+  { id: 'palette',  name: 'Padu Padan Warna Outfit',   color: '#EC4899', origIndex: 16, bx: 154,  by: 338, r: 18, tx: 475, ty: 476, phi_t: -2.95, ampX: 2.4, ampY: 3.4, freqX: 1.2, freqY: 1.3, phase: 1.0, },
+  { id: 'gift',     name: 'Hadiah & Poin Member',      color: '#F43F5E', origIndex: 21, bx: 392,  by: 416, r: 18, tx: 478, ty: 461, phi_t: -2.88, ampX: 2.8, ampY: 3.4, freqX: 1.2, freqY: 1.3, phase: 1.3, },
+  { id: 'store',    name: 'Manajemen Butik Talaka',    color: '#9E7B66', origIndex: 1,  bx: 112,  by: 21,  r: 20, tx: 480, ty: 454, phi_t: -2.85, ampX: 3.0, ampY: 3.5, freqX: 1.1, freqY: 1.4, phase: 1.5, },
+  { id: 'heart',    name: 'Wishlist & Favorit OOTD',   color: '#EC4899', origIndex: 17, bx: 280,  by: 333, r: 20, tx: 480, ty: 454, phi_t: -2.85, ampX: 2.2, ampY: 3.2, freqX: 1.5, freqY: 1.0, phase: 1.8, },
+  { id: 'cs24',     name: 'Layanan CS 24/7 Support',   color: '#0EA5E9', origIndex: 2,  bx: 238,  by: 42,  r: 22, tx: 488, ty: 432, phi_t: -2.75, ampX: 2.8, ampY: 3.2, freqX: 1.4, freqY: 1.1, phase: 2.0, },
+  { id: 'clock',    name: 'Respon Cepat < 5 Detik',    color: '#64748B', origIndex: 18, bx: 420,  by: 317, r: 18, tx: 488, ty: 432, phi_t: -2.75, ampX: 2.0, ampY: 3.0, freqX: 1.3, freqY: 1.2, phase: 2.3, },
+  { id: 'cart',     name: 'Keranjang & Checkout',      color: '#F59E0B', origIndex: 3,  bx: 364,  by: 21,  r: 22, tx: 498, ty: 411, phi_t: -2.65, ampX: 2.8, ampY: 4.0, freqX: 1.2, freqY: 1.3, phase: 2.5, },
+  { id: 'faq',      name: 'Pusat Bantuan FAQ',         color: '#06B6D4', origIndex: 4,  bx: 476,  by: 42,  r: 20, tx: 509, ty: 392, phi_t: -2.55, ampX: 3.2, ampY: 3.2, freqX: 1.5, freqY: 1.1, phase: 2.8, },
+  { id: 'lock',     name: 'Privasi & Enkripsi Data',   color: '#8B5CF6', origIndex: 5,  bx: 14,   by: 125, r: 18, tx: 523, ty: 374, phi_t: -2.45, ampX: 2.2, ampY: 3.8, freqX: 1.2, freqY: 1.3, phase: 3.1, },
+  { id: 'shield',   name: 'Keamanan Transaksi UU PDP', color: '#6366F1', origIndex: 6,  bx: 126,  by: 114, r: 18, tx: 537, ty: 358, phi_t: -2.36, ampX: 2.4, ampY: 4.2, freqX: 1.6, freqY: 1.5, phase: 3.4, },
+  { id: 'sparkle',  name: 'Fitur Pintar Fashion AI',   color: '#9E7B66', origIndex: 7,  bx: 252,  by: 135, r: 18, tx: 554, ty: 342, phi_t: -2.26, ampX: 2.0, ampY: 3.6, freqX: 1.6, freqY: 1.1, phase: 3.7, },
+  { id: 'card',     name: 'Faktur & Struk Digital',    color: '#9E7B66', origIndex: 8,  bx: 378,  by: 120, r: 18, tx: 572, ty: 329, phi_t: -2.16, ampX: 2.0, ampY: 3.0, freqX: 1.2, freqY: 0.9, phase: 4.0, },
+  { id: 'zap',      name: 'Pesanan Kilat E-Wallet',    color: '#EAB308', origIndex: 9,  bx: 504,  by: 94,  r: 18, tx: 592, ty: 317, phi_t: -2.06, ampX: 2.2, ampY: 4.8, freqX: 1.4, freqY: 1.5, phase: 4.3, },
+  { id: 'bag',      name: 'Koleksi Retail Talaka',     color: '#6366F1', origIndex: 10, bx: 14,   by: 229, r: 24, tx: 613, ty: 307, phi_t: -1.96, ampX: 3.2, ampY: 4.5, freqX: 1.3, freqY: 1.0, phase: 4.6, },
+  { id: 'chart',    name: 'Grafik Omset & Stok',       color: '#10B981', origIndex: 11, bx: 126,  by: 218, r: 20, tx: 635, ty: 299, phi_t: -1.86, ampX: 2.6, ampY: 3.6, freqX: 1.4, freqY: 1.1, phase: 4.9, },
+  { id: 'tag',      name: 'Voucher & Diskon Promo',    color: '#84CC16', origIndex: 12, bx: 252,  by: 234, r: 18, tx: 657, ty: 294, phi_t: -1.76, ampX: 2.8, ampY: 3.4, freqX: 1.2, freqY: 1.3, phase: 5.2, },
+  { id: 'activity', name: 'Monitor Transaksi',         color: '#0891B2', origIndex: 13, bx: 378,  by: 218, r: 18, tx: 675, ty: 291, phi_t: -1.68, ampX: 2.3, ampY: 3.8, freqX: 1.6, freqY: 1.4, phase: 5.5, },
+  { id: 'camera',   name: 'Virtual Try-On AI',         color: '#8B5CF6', origIndex: 14, bx: 504,  by: 198, r: 20, tx: 693, ty: 290, phi_t: -1.60, ampX: 2.8, ampY: 3.9, freqX: 1.4, freqY: 1.2, phase: 5.8, },
+
+  /* ── CENTER TOP ── */
+  { id: 'ai',       name: 'AI Brain Talaka Core',      color: '#3B82F6', origIndex: 22, bx: 686,  by: 5,   r: 26, tx: 700, ty: 290, phi_t: -1.57, ampX: 2.6, ampY: 4.2, freqX: 1.1, freqY: 1.2, phase: 6.0, },
+
+  /* ── RIGHT SIDE (From top to bottom, phi_t from -1.48 to -0.06) ── */
+  { id: 'search',   name: 'Pencarian Produk Cerdas',   color: '#2563EB', origIndex: 23, bx: 882,  by: 73,  r: 18, tx: 721, ty: 291, phi_t: -1.48, ampX: 2.4, ampY: 3.8, freqX: 1.3, freqY: 1.4, phase: 6.3, },
+  { id: 'check2',   name: 'Stok Real-Time',            color: '#0D9488', origIndex: 28, bx: 882,  by: 198, r: 20, tx: 739, ty: 293, phi_t: -1.40, ampX: 2.6, ampY: 4.5, freqX: 1.4, freqY: 1.4, phase: 6.6, },
+  { id: 'ruler',    name: 'Panduan Ukuran TB/BB',      color: '#3B82F6', origIndex: 24, bx: 994,  by: 21,  r: 22, tx: 743, ty: 294, phi_t: -1.38, ampX: 3.4, ampY: 4.6, freqX: 1.2, freqY: 1.3, phase: 6.9, },
+  { id: 'retur',    name: 'Garansi Retur 7 Hari',      color: '#10B981', origIndex: 25, bx: 1120, by: 42,  r: 22, tx: 766, ty: 300, phi_t: -1.28, ampX: 3.2, ampY: 4.2, freqX: 1.6, freqY: 1.3, phase: 7.2, },
+  { id: 'check',    name: 'Rekomendasi Akurat',        color: '#16A34A', origIndex: 26, bx: 1246, by: 21,  r: 22, tx: 788, ty: 308, phi_t: -1.18, ampX: 2.5, ampY: 4.0, freqX: 1.2, freqY: 1.3, phase: 7.5, },
+  { id: 'star',     name: 'Ulasan Kepuasan CSAT',      color: '#F59E0B', origIndex: 27, bx: 1358, by: 31,  r: 22, tx: 809, ty: 318, phi_t: -1.08, ampX: 2.2, ampY: 3.2, freqX: 1.5, freqY: 1.0, phase: 7.8, },
+  { id: 'shirt',    name: 'Katalog Koleksi Lengkap',   color: '#A855F7', origIndex: 29, bx: 1008, by: 120, r: 20, tx: 828, ty: 329, phi_t: -0.98, ampX: 2.2, ampY: 4.4, freqX: 1.5, freqY: 1.2, phase: 8.1, },
+  { id: 'flame',    name: 'Tren Busana Viral 2026',    color: '#EA580C', origIndex: 30, bx: 1134, by: 135, r: 18, tx: 847, ty: 343, phi_t: -0.88, ampX: 2.8, ampY: 3.6, freqX: 1.4, freqY: 1.4, phase: 8.4, },
+  { id: 'sliders',  name: 'Filter Bahan & Potongan',   color: '#2563EB', origIndex: 31, bx: 1260, by: 114, r: 18, tx: 864, ty: 358, phi_t: -0.78, ampX: 2.8, ampY: 3.6, freqX: 1.3, freqY: 1.2, phase: 8.7, },
+  { id: 'barstat',  name: 'Statistik & Laporan Toko',  color: '#14B8A6', origIndex: 32, bx: 1372, by: 125, r: 18, tx: 880, ty: 375, phi_t: -0.68, ampX: 2.6, ampY: 3.5, freqX: 1.3, freqY: 1.5, phase: 9.0, },
+  { id: 'web',      name: 'Toko Web & Omnichannel',    color: '#64748B', origIndex: 33, bx: 994,  by: 218, r: 18, tx: 893, ty: 394, phi_t: -0.58, ampX: 2.8, ampY: 3.8, freqX: 1.3, freqY: 1.5, phase: 9.3, },
+  { id: 'activity2',name: 'Padu Padan Koleksi Baru',   color: '#D946EF', origIndex: 34, bx: 1120, by: 234, r: 18, tx: 904, ty: 414, phi_t: -0.48, ampX: 2.4, ampY: 3.4, freqX: 1.5, freqY: 1.1, phase: 9.6, },
+  { id: 'cpu',      name: 'Algoritma Talaka Engine',   color: '#475569', origIndex: 37, bx: 952,  by: 317, r: 18, tx: 912, ty: 431, phi_t: -0.40, ampX: 2.2, ampY: 3.2, freqX: 1.2, freqY: 1.4, phase: 9.9, },
+  { id: 'chart2',   name: 'Performa Analitik Bisnis',  color: '#D97706', origIndex: 35, bx: 1246, by: 218, r: 20, tx: 914, ty: 435, phi_t: -0.38, ampX: 3.0, ampY: 3.2, freqX: 1.5, freqY: 1.1, phase: 10.2, },
+  { id: 'layers',   name: 'Mix & Match Layering',      color: '#8B5CF6', origIndex: 36, bx: 1372, by: 229, r: 18, tx: 921, ty: 457, phi_t: -0.28, ampX: 2.5, ampY: 3.5, freqX: 1.4, freqY: 1.2, phase: 10.5, },
+  { id: 'gift2',    name: 'Gratis Ongkir Se-Indonesia',color: '#F43F5E', origIndex: 41, bx: 980,  by: 416, r: 18, tx: 923, ty: 461, phi_t: -0.26, ampX: 2.6, ampY: 3.4, freqX: 1.3, freqY: 1.1, phase: 10.8, },
+  { id: 'store2',   name: 'Outlet Mitra Butik',        color: '#9E7B66', origIndex: 38, bx: 1078, by: 338, r: 18, tx: 919, ty: 452, phi_t: -0.30, ampX: 2.8, ampY: 3.2, freqX: 1.1, freqY: 1.3, phase: 11.1, },
+  { id: 'tag2',     name: 'Flash Sale & Promo Kilat',  color: '#84CC16', origIndex: 39, bx: 1218, by: 343, r: 18, tx: 925, ty: 474, phi_t: -0.20, ampX: 2.4, ampY: 3.6, freqX: 1.4, freqY: 1.2, phase: 11.4, },
+  { id: 'truck2',   name: 'Tracking Paket Real-Time',  color: '#F97316', origIndex: 42, bx: 1134, by: 437, r: 18, tx: 927, ty: 483, phi_t: -0.16, ampX: 2.8, ampY: 3.2, freqX: 1.5, freqY: 1.0, phase: 11.7, },
+  { id: 'heart2',   name: 'Pilihan Editor Fashion',    color: '#EC4899', origIndex: 40, bx: 1358, by: 354, r: 18, tx: 929, ty: 497, phi_t: -0.10, ampX: 2.6, ampY: 3.4, freqX: 1.2, freqY: 1.3, phase: 12.0, },
+  { id: 'card2',    name: 'Metode Pembayaran Digital', color: '#0284C7', origIndex: 43, bx: 1316, by: 447, r: 18, tx: 930, ty: 506, phi_t: -0.06, ampX: 2.5, ampY: 3.0, freqX: 1.4, freqY: 1.1, phase: 12.3, },
 ];
 
 function getInitialPath(c) {
@@ -95,28 +138,73 @@ export default function LandingPage({
   const basePathsRef     = useRef([]);
   const streamPathsRef   = useRef([]);
 
-  /* ── 20 High-Tech Vector Illustration Icons ── */
+  /* ── 44 High-Tech Vector Nodes — Edge-to-Edge Full Canvas (Zero Empty Margins) ── */
   const abstractNodes = [
-    { id: 'gmail',    title: 'Layanan CS 24/7 & Support',        className: 'w-11 h-11', style: { left: '5%',  top: '22%' }, bg: 'bg-white shadow-md border border-slate-200', content: <Shirt className="h-5 w-5 text-slate-800" /> },
-    { id: 'drive',    title: 'Manajemen Bisnis & Katalog',       className: 'w-10 h-10', style: { left: '12%', top: '8%'  }, bg: 'bg-white shadow-md border border-slate-200', content: <Store className="h-5 w-5 text-[#9E7B66]" /> },
-    { id: 'd2l',      title: 'Toko Retail & Butik Talaka',       className: 'w-13 h-13', style: { left: '2%',  top: '48%' }, bg: 'bg-slate-900 shadow-xl border border-slate-800', content: <ShoppingBag className="h-6 w-6 text-white" /> },
-    { id: 'sheets',   title: 'Grafik Penjualan & Performa Stok', className: 'w-10 h-10', style: { left: '10%', top: '70%' }, bg: 'bg-white shadow-md border border-slate-200', content: <TrendingUp className="h-5 w-5 text-emerald-600" /> },
-    { id: 'pdf',      title: 'Faktur & Struk Transaksi',         className: 'w-9 h-9',   style: { left: '17%', top: '84%' }, bg: 'bg-white shadow-sm border border-slate-200', content: <CreditCard className="h-4 w-4 text-[#9E7B66]" /> },
-    { id: 'health',   title: 'Keamanan Transaksi & UU PDP',      className: 'w-8 h-8',   style: { left: '21%', top: '52%' }, bg: 'bg-white shadow-sm border border-slate-200', content: <ShieldCheck className="h-4 w-4 text-indigo-600" /> },
-    { id: 'canvas',   title: 'Keranjang Belanja & Checkout',     className: 'w-12 h-12', style: { left: '20%', top: '14%' }, bg: 'bg-white shadow-md border border-slate-200', content: <ShoppingBag className="h-6 w-6 text-slate-800" /> },
-    { id: 'notion',   title: 'Pusat Bantuan FAQ Toko',           className: 'w-10 h-10', style: { left: '32%', top: '4%'  }, bg: 'bg-white shadow-md border border-slate-200', content: <MessageCircle className="h-5 w-5 text-slate-800" /> },
-    { id: 'code',     title: 'Pesanan Smartphone & E-Wallet',    className: 'w-8 h-8',   style: { left: '36%', top: '28%' }, bg: 'bg-slate-900 shadow-md', content: <Zap className="h-4 w-4 text-amber-400" /> },
-    { id: 'gpt',      title: 'AI Brain Talaka — Teman Gaya',     className: 'w-14 h-14', style: { left: '47%', top: '2%'  }, bg: 'bg-slate-900 shadow-2xl ring-4 ring-slate-100', content: <Bot className="h-7 w-7 text-white" /> },
-    { id: 'sparkle',  title: 'Fitur Pintar Fashion',             className: 'w-8 h-8',   style: { left: '43%', top: '14%' }, bg: 'bg-slate-50 shadow-sm border border-slate-200', content: <Sparkles className="h-4 w-4 text-[#9E7B66]" /> },
-    { id: 'gemini',   title: 'Panduan Ukuran Presisi TB/BB',     className: 'w-11 h-11', style: { left: '58%', top: '8%'  }, bg: 'bg-white shadow-md border border-slate-200', content: <Ruler className="h-5 w-5 text-blue-600" /> },
-    { id: 'claude',   title: 'Ulasan Kepuasan CSAT ≥ 4.2',       className: 'w-12 h-12', style: { left: '68%', top: '6%'  }, bg: 'bg-white shadow-md border border-slate-200', content: <Heart className="h-6 w-6 text-[#9E7B66]" /> },
-    { id: 'discord',  title: 'Diskusi Gaya & Teman Ngobrol',     className: 'w-9 h-9',   style: { left: '64%', top: '32%' }, bg: 'bg-white shadow-sm border border-slate-200', content: <MessageCircle className="h-4 w-4 text-purple-600" /> },
-    { id: 'teams',    title: 'Garansi Retur 7 Hari',             className: 'w-11 h-11', style: { left: '77%', top: '18%' }, bg: 'bg-white shadow-md border border-slate-200', content: <RefreshCw className="h-5 w-5 text-emerald-600" /> },
-    { id: 'deepseek', title: 'Rekomendasi Akurat',        className: 'w-11 h-11', style: { left: '88%', top: '8%'  }, bg: 'bg-white shadow-md border border-slate-200', content: <CheckCircle2 className="h-5 w-5 text-slate-800" /> },
-    { id: 'slack',    title: 'Pengiriman Kilat & COD',           className: 'w-10 h-10', style: { left: '83%', top: '44%' }, bg: 'bg-white shadow-md border border-slate-200', content: <Truck className="h-5 w-5 text-orange-600" /> },
-    { id: 'hubspot',  title: 'Voucher Promo & Diskon',           className: 'w-11 h-11', style: { left: '92%', top: '58%' }, bg: 'bg-white shadow-md border border-slate-200', content: <Zap className="h-5 w-5 text-[#9E7B66]" /> },
-    { id: 'figma',    title: 'Katalog Koleksi Busana',    className: 'w-9 h-9',   style: { left: '75%', top: '76%' }, bg: 'bg-white shadow-sm border border-slate-200', content: <Shirt className="h-4 w-4 text-purple-600" /> },
-    { id: 'web',      title: 'Toko Web & Omnichannel',           className: 'w-9 h-9',   style: { left: '87%', top: '82%' }, bg: 'bg-white shadow-sm border border-slate-200', content: <Store className="h-4 w-4 text-slate-800" /> },
+    /* ── LEFT SIDE (Row 1 Top) ── */
+    { id: 'bell',     title: 'Notifikasi Pesanan Kilat',         className: 'w-10 h-10', style: { left: '1%',   top: '6%'  }, bg: 'bg-amber-500 shadow-md shadow-amber-200 border-2 border-amber-400',     content: <Bell className="h-5 w-5 text-white" /> },
+    { id: 'store',    title: 'Manajemen Butik Talaka',           className: 'w-11 h-11', style: { left: '8%',   top: '4%'  }, bg: 'bg-[#9E7B66] shadow-lg shadow-[#9E7B66]/30 border-2 border-[#b8957c]', content: <Store className="h-5 w-5 text-white" /> },
+    { id: 'cs24',     title: 'Layanan CS 24/7 Support',          className: 'w-12 h-12', style: { left: '17%',  top: '8%'  }, bg: 'bg-blue-500 shadow-lg shadow-blue-200 border-2 border-blue-400',       content: <Headphones className="h-6 w-6 text-white" /> },
+    { id: 'cart',     title: 'Keranjang & Checkout Cepat',       className: 'w-12 h-12', style: { left: '26%',  top: '4%'  }, bg: 'bg-amber-500 shadow-lg shadow-amber-200 border-2 border-amber-400',     content: <ShoppingBag className="h-6 w-6 text-white" /> },
+    { id: 'faq',      title: 'Pusat Bantuan FAQ',                className: 'w-11 h-11', style: { left: '34%',  top: '8%'  }, bg: 'bg-cyan-500 shadow-lg shadow-cyan-200 border-2 border-cyan-400',       content: <MessageCircle className="h-5 w-5 text-white" /> },
+
+    /* ── LEFT SIDE (Row 2 Upper-Mid) ── */
+    { id: 'lock',     title: 'Privasi & Enkripsi Data',          className: 'w-9 h-9',   style: { left: '1%',   top: '24%' }, bg: 'bg-purple-500 shadow-md shadow-purple-200 border-2 border-purple-400',  content: <Lock className="h-4 w-4 text-white" /> },
+    { id: 'shield',   title: 'Keamanan Transaksi UU PDP',        className: 'w-10 h-10', style: { left: '9%',   top: '22%' }, bg: 'bg-indigo-500 shadow-lg shadow-indigo-200 border-2 border-indigo-400',  content: <ShieldCheck className="h-5 w-5 text-white" /> },
+    { id: 'sparkle',  title: 'Fitur Pintar Fashion AI',          className: 'w-9 h-9',   style: { left: '18%',  top: '26%' }, bg: 'bg-[#9E7B66] shadow-md shadow-[#9E7B66]/30 border-2 border-[#b8957c]', content: <Sparkles className="h-5 w-5 text-white" /> },
+    { id: 'card',     title: 'Faktur & Struk Digital',           className: 'w-10 h-10', style: { left: '27%',  top: '23%' }, bg: 'bg-[#9E7B66] shadow-md shadow-[#9E7B66]/30 border-2 border-[#b8957c]',  content: <CreditCard className="h-5 w-5 text-white" /> },
+    { id: 'zap',      title: 'Pesanan Kilat E-Wallet',           className: 'w-9 h-9',   style: { left: '36%',  top: '18%' }, bg: 'bg-slate-900 shadow-md border-2 border-slate-700',                      content: <Zap className="h-5 w-5 text-amber-400" /> },
+
+    /* ── LEFT SIDE (Row 3 Mid) ── */
+    { id: 'bag',      title: 'Koleksi Retail Talaka',            className: 'w-13 h-13', style: { left: '1%',   top: '44%' }, bg: 'bg-slate-900 shadow-xl shadow-slate-900/30 border-2 border-slate-700',  content: <ShoppingBag className="h-6 w-6 text-white" /> },
+    { id: 'chart',    title: 'Grafik Omset & Stok',              className: 'w-11 h-11', style: { left: '9%',   top: '42%' }, bg: 'bg-emerald-500 shadow-lg shadow-emerald-200 border-2 border-emerald-400', content: <TrendingUp className="h-5 w-5 text-white" /> },
+    { id: 'tag',      title: 'Voucher & Diskon Promo',           className: 'w-9 h-9',   style: { left: '18%',  top: '45%' }, bg: 'bg-lime-500 shadow-md shadow-lime-200 border-2 border-lime-400',       content: <Tag className="h-4 w-4 text-white" /> },
+    { id: 'activity', title: 'Monitor Transaksi Real-Time',      className: 'w-9 h-9',   style: { left: '27%',  top: '42%' }, bg: 'bg-cyan-600 shadow-md shadow-cyan-200 border-2 border-cyan-500',       content: <Activity className="h-4 w-4 text-white" /> },
+    { id: 'camera',   title: 'Virtual Try-On AI Preview',        className: 'w-10 h-10', style: { left: '36%',  top: '38%' }, bg: 'bg-violet-500 shadow-md shadow-violet-200 border-2 border-violet-400', content: <Camera className="h-5 w-5 text-white" /> },
+
+    /* ── LEFT SIDE (Row 4 Lower-Mid) ── */
+    { id: 'mappin',   title: 'Lokasi Kurir Pengiriman',          className: 'w-10 h-10', style: { left: '2%',   top: '66%' }, bg: 'bg-red-500 shadow-md shadow-red-200 border-2 border-red-400',          content: <MapPin className="h-5 w-5 text-white" /> },
+    { id: 'palette',  title: 'Padu Padan Warna Outfit',          className: 'w-10 h-10', style: { left: '11%',  top: '65%' }, bg: 'bg-pink-500 shadow-md shadow-pink-200 border-2 border-pink-400',       content: <Palette className="h-5 w-5 text-white" /> },
+    { id: 'heart',    title: 'Wishlist & Favorit OOTD',          className: 'w-10 h-10', style: { left: '20%',  top: '64%' }, bg: 'bg-pink-500 shadow-md shadow-pink-200 border-2 border-pink-400',       content: <Heart className="h-5 w-5 text-white fill-white" /> },
+    { id: 'clock',    title: 'Respon Cepat < 5 Detik',           className: 'w-9 h-9',   style: { left: '30%',  top: '61%' }, bg: 'bg-slate-700 shadow-md border-2 border-slate-500',                     content: <Clock className="h-4 w-4 text-white" /> },
+
+    /* ── LEFT SIDE (Row 5 Bottom) ── */
+    { id: 'truck',    title: 'Ekspedisi Kilat & COD',            className: 'w-11 h-11', style: { left: '5%',   top: '85%' }, bg: 'bg-orange-500 shadow-lg shadow-orange-200 border-2 border-orange-400', content: <Truck className="h-5 w-5 text-white" /> },
+    { id: 'compass',  title: 'Panduan Gaya & Rekomendasi',       className: 'w-9 h-9',   style: { left: '17%',  top: '83%' }, bg: 'bg-blue-600 shadow-md border-2 border-blue-500',                       content: <Compass className="h-4 w-4 text-white" /> },
+    { id: 'gift',     title: 'Hadiah & Poin Member',             className: 'w-10 h-10', style: { left: '28%',  top: '80%' }, bg: 'bg-rose-500 shadow-md shadow-rose-200 border-2 border-rose-400',       content: <Gift className="h-5 w-5 text-white" /> },
+
+    /* ── CENTER TOP ── */
+    { id: 'ai',       title: 'AI Brain Talaka Core',             className: 'w-15 h-15', style: { left: '49%',  top: '1%'  }, bg: 'bg-slate-900 shadow-2xl shadow-slate-900/40 ring-4 ring-slate-100 border-2 border-slate-700', content: <Bot className="h-7 w-7 text-white" /> },
+
+    /* ── RIGHT SIDE (Row 1 Top) ── */
+    { id: 'search',   title: 'Pencarian Produk Cerdas',          className: 'w-9 h-9',   style: { left: '63%',  top: '14%' }, bg: 'bg-blue-50 shadow-sm border-2 border-blue-200',                        content: <Search className="h-4 w-4 text-blue-600" /> },
+    { id: 'ruler',    title: 'Panduan Ukuran Presisi TB/BB',     className: 'w-12 h-12', style: { left: '71%',  top: '4%'  }, bg: 'bg-blue-500 shadow-lg shadow-blue-200 border-2 border-blue-400',       content: <Ruler className="h-6 w-6 text-white" /> },
+    { id: 'retur',    title: 'Garansi Retur 7 Hari',             className: 'w-12 h-12', style: { left: '80%',  top: '8%'  }, bg: 'bg-emerald-500 shadow-lg shadow-emerald-200 border-2 border-emerald-400', content: <RefreshCw className="h-6 w-6 text-white" /> },
+    { id: 'check',    title: 'Rekomendasi Outfit Akurat',        className: 'w-12 h-12', style: { left: '89%',  top: '4%'  }, bg: 'bg-green-600 shadow-lg shadow-green-200 border-2 border-green-500',    content: <CheckCircle2 className="h-6 w-6 text-white" /> },
+    { id: 'star',     title: 'Ulasan Kepuasan Bintang 5',        className: 'w-13 h-13', style: { left: '97%',  top: '6%'  }, bg: 'bg-amber-400 shadow-lg shadow-amber-200 border-2 border-amber-300',    content: <Star className="h-6 w-6 text-white fill-white" /> },
+
+    /* ── RIGHT SIDE (Row 2 Upper-Mid) ── */
+    { id: 'check2',   title: 'Stok Real-Time Seluruh Toko',      className: 'w-10 h-10', style: { left: '63%',  top: '38%' }, bg: 'bg-teal-600 shadow-md border-2 border-teal-500',                       content: <Package className="h-5 w-5 text-white" /> },
+    { id: 'shirt',    title: 'Katalog Koleksi Lengkap',          className: 'w-10 h-10', style: { left: '72%',  top: '23%' }, bg: 'bg-purple-500 shadow-md shadow-purple-200 border-2 border-purple-400', content: <Shirt className="h-5 w-5 text-white" /> },
+    { id: 'flame',    title: 'Tren Busana Viral 2026',           className: 'w-9 h-9',   style: { left: '81%',  top: '26%' }, bg: 'bg-orange-500 shadow-md shadow-orange-200 border-2 border-orange-400', content: <Flame className="h-5 w-5 text-white" /> },
+    { id: 'sliders',  title: 'Filter Bahan & Potongan',          className: 'w-9 h-9',   style: { left: '90%',  top: '22%' }, bg: 'bg-blue-600 shadow-md border-2 border-blue-500',                       content: <Sliders className="h-4 w-4 text-white" /> },
+    { id: 'barstat',  title: 'Statistik & Laporan Toko',         className: 'w-9 h-9',   style: { left: '98%',  top: '24%' }, bg: 'bg-teal-500 shadow-md shadow-teal-200 border-2 border-teal-400',       content: <BarChart2 className="h-5 w-5 text-white" /> },
+
+    /* ── RIGHT SIDE (Row 3 Mid) ── */
+    { id: 'web',      title: 'Toko Web & Omnichannel',           className: 'w-9 h-9',   style: { left: '71%',  top: '42%' }, bg: 'bg-slate-800 shadow-md border-2 border-slate-600',                     content: <Store className="h-5 w-5 text-white" /> },
+    { id: 'activity2',title: 'Padu Padan Koleksi Baru',          className: 'w-9 h-9',   style: { left: '80%',  top: '45%' }, bg: 'bg-fuchsia-500 shadow-md border-2 border-fuchsia-400',                 content: <Layers className="h-4 w-4 text-white" /> },
+    { id: 'chart2',   title: 'Performa Analitik Bisnis',         className: 'w-10 h-10', style: { left: '89%',  top: '42%' }, bg: 'bg-amber-600 shadow-md border-2 border-amber-500',                     content: <BarChart2 className="h-5 w-5 text-white" /> },
+    { id: 'layers',   title: 'Mix & Match Layering',             className: 'w-9 h-9',   style: { left: '98%',  top: '44%' }, bg: 'bg-indigo-600 shadow-md border-2 border-indigo-400',                   content: <Layers className="h-4 w-4 text-white" /> },
+
+    /* ── RIGHT SIDE (Row 4 Lower-Mid) ── */
+    { id: 'cpu',      title: 'Algoritma Talaka Engine',          className: 'w-9 h-9',   style: { left: '68%',  top: '61%' }, bg: 'bg-slate-700 shadow-md border-2 border-slate-500',                     content: <Cpu className="h-4 w-4 text-white" /> },
+    { id: 'store2',   title: 'Outlet Mitra Butik',               className: 'w-9 h-9',   style: { left: '77%',  top: '65%' }, bg: 'bg-[#9E7B66] shadow-md border-2 border-[#b8957c]',                     content: <Store className="h-4 w-4 text-white" /> },
+    { id: 'tag2',     title: 'Flash Sale & Promo Kilat',         className: 'w-9 h-9',   style: { left: '87%',  top: '66%' }, bg: 'bg-lime-500 shadow-md border-2 border-lime-400',                       content: <Tag className="h-4 w-4 text-white" /> },
+    { id: 'heart2',   title: 'Pilihan Editor Fashion',           className: 'w-9 h-9',   style: { left: '97%',  top: '68%' }, bg: 'bg-pink-500 shadow-md border-2 border-pink-400',                       content: <Heart className="h-4 w-4 text-white fill-white" /> },
+
+    /* ── RIGHT SIDE (Row 5 Bottom) ── */
+    { id: 'gift2',    title: 'Gratis Ongkir Se-Indonesia',       className: 'w-9 h-9',   style: { left: '70%',  top: '80%' }, bg: 'bg-rose-500 shadow-md border-2 border-rose-400',                       content: <Gift className="h-4 w-4 text-white" /> },
+    { id: 'truck2',   title: 'Tracking Paket Real-Time',         className: 'w-10 h-10', style: { left: '81%',  top: '84%' }, bg: 'bg-orange-500 shadow-md border-2 border-orange-400',                   content: <Truck className="h-4 w-4 text-white" /> },
+    { id: 'card2',    title: 'Metode Pembayaran Digital',        className: 'w-10 h-10', style: { left: '94%',  top: '86%' }, bg: 'bg-blue-600 shadow-md border-2 border-blue-400',                       content: <CreditCard className="h-4 w-4 text-white" /> },
   ];
 
   /* ── GSAP Animations ── */
@@ -135,11 +223,11 @@ export default function LandingPage({
         });
       }
 
-      // 3. Stagger pulse cables
+      // 3. Stagger pulse cables (Smooth continuous multi-pulse flow)
       streamPathsRef.current.forEach((path, i) => {
         if (!path) return;
-        path.style.animationDuration = `${4.5 + (i % 9) * 0.4}s`;
-        path.style.animationDelay   = `${-((i * 0.35) % 4.0).toFixed(2)}s`;
+        path.style.animationDuration = `${2.6 + (i % 7) * 0.22}s`;
+        path.style.animationDelay   = `${-((i * 0.4) % 2.6).toFixed(2)}s`;
       });
 
       // 4. Live ticker for floating nodes + curved cables
@@ -249,25 +337,33 @@ export default function LandingPage({
         </nav>
       </header>
 
-      {/* ═══════════════════════════ 2. HERO SECTION (100% RESTORED ROTATING HUB + CABLES) ═══════════════════════════ */}
-      <section id="koleksi-3d" className="relative pt-12 pb-24 md:pt-16 md:pb-32 overflow-hidden">
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 flex flex-col items-center text-center">
-
+      {/* ═══════════════════════════ 2. HERO SECTION (100% RESTORED ROTATING HUB + CABLES + GLYPH BG) ═══════════════════════════ */}
+      <section id="koleksi-3d" className="relative overflow-hidden">
+        <GlyphBackground
+          className="relative pt-12 pb-24 md:pt-16 md:pb-32 w-full"
+          glowColor="#94a3b8"
+          shapeColor="#9E7B66"
+          fontSize={10}
+          interactive={true}
+        >
           {/* 3D Rotating Shoe Showcase (Persis Foto 2) */}
-          <ShoeShowcase
-            onSelectSamplePrompt={onSelectSamplePrompt}
-            onScrollToChat={onScrollToChat}
-          />
+          <div className="relative mx-auto max-w-5xl px-4 sm:px-6 flex flex-col items-center text-center">
+            <ShoeShowcase
+              onSelectSamplePrompt={onSelectSamplePrompt}
+              onScrollToChat={onScrollToChat}
+            />
+          </div>
 
-          {/* ═══════════════════════════ CENTRAL ROTATING HUB (100% INTACT & RESTORED) ═══════════════════════════ */}
+          {/* ═══════════════════════════ CENTRAL ROTATING HUB (Full-Width Edge-to-Edge) ═══════════════════════════ */}
           <div
             ref={hubRef}
-            className="relative mt-12 w-full max-w-[1000px] h-[520px] sm:h-[560px] flex items-center justify-center select-none"
+            className="relative mt-8 w-full max-w-[1720px] mx-auto h-[530px] sm:h-[580px] flex items-center justify-center select-none px-2 sm:px-4"
           >
             {/* Background Arch SVG with S-Cable Connectors */}
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-              viewBox="0 0 1000 520"
+              viewBox="0 0 1400 520"
+              preserveAspectRatio="none"
               fill="none"
             >
               <defs>
@@ -279,11 +375,18 @@ export default function LandingPage({
                 </radialGradient>
               </defs>
 
-              {/* Concentric Tech HUD Rings */}
-              <circle cx="500" cy="520" r="230" className="arch-line" />
-              <circle cx="500" cy="520" r="260" className="ring-dashed" />
-              <circle cx="500" cy="520" r="290" className="arch-line" opacity="0.6" />
-              <circle cx="500" cy="520" r="330" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="6 6" />
+              {/* Concentric Tech HUD Rings — menyebar luas hingga tepi layar */}
+              <circle cx="700" cy="520" r="180" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 4" opacity="0.7" />
+              <circle cx="700" cy="520" r="230" className="arch-line" />
+              <circle cx="700" cy="520" r="290" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="6 5" opacity="0.8" />
+              <circle cx="700" cy="520" r="360" className="ring-dashed" />
+              <circle cx="700" cy="520" r="440" className="arch-line" opacity="0.6" />
+              <circle cx="700" cy="520" r="530" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
+              <circle cx="700" cy="520" r="630" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 8" opacity="0.5" />
+              <circle cx="700" cy="520" r="740" stroke="#CBD5E1" strokeWidth="1.2" strokeDasharray="6 10" opacity="0.5" />
+              <circle cx="700" cy="520" r="860" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="3 7" opacity="0.4" />
+              <circle cx="700" cy="520" r="990" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="5 9" opacity="0.35" />
+              <circle cx="700" cy="520" r="1140" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 8" opacity="0.25" />
 
               {/* 20 Live S-Curve Guide Tracks */}
               {cablesData.map((c, i) => (
@@ -336,15 +439,22 @@ export default function LandingPage({
                   ref={rotatingWheelRef}
                   className="absolute inset-0 rounded-full border border-slate-200/90 shadow-lg shadow-slate-900/5 bg-white/70 backdrop-blur-xs flex items-center justify-center will-change-transform"
                 >
-                  {/* Concentric inner rings */}
-                  <div className="absolute w-[82%] h-[82%] rounded-full border border-dashed border-slate-300/80" />
-                  <div className="absolute w-[64%] h-[64%] rounded-full border border-slate-200" />
-                  <div className="absolute w-[46%] h-[46%] rounded-full border border-dashed border-slate-200" />
+                  {/* Concentric inner rings — lebih banyak putus-putus */}
+                  <div className="absolute w-[90%] h-[90%] rounded-full border border-dashed border-slate-200/70" />
+                  <div className="absolute w-[80%] h-[80%] rounded-full border border-dashed border-slate-300/80" />
+                  <div className="absolute w-[70%] h-[70%] rounded-full border border-slate-200/60" />
+                  <div className="absolute w-[60%] h-[60%] rounded-full border border-dashed border-slate-300/70" />
+                  <div className="absolute w-[50%] h-[50%] rounded-full border border-slate-200/80" />
+                  <div className="absolute w-[40%] h-[40%] rounded-full border border-dashed border-slate-200/60" />
+                  <div className="absolute w-[30%] h-[30%] rounded-full border border-dashed border-slate-300/50" />
 
-                  {/* Radial Divider Spokes */}
-                  <div className="absolute w-full h-[1px] bg-slate-200/80" />
-                  <div className="absolute w-full h-[1px] bg-slate-200/80 rotate-60" />
-                  <div className="absolute w-full h-[1px] bg-slate-200/80 rotate-120" />
+                  {/* Radial Divider Spokes — lebih banyak */}
+                  <div className="absolute w-full h-[1px] bg-slate-200/70" />
+                  <div className="absolute w-full h-[1px] bg-slate-200/70 rotate-30" />
+                  <div className="absolute w-full h-[1px] bg-slate-200/70 rotate-60" />
+                  <div className="absolute w-full h-[1px] bg-slate-200/70 rotate-90" />
+                  <div className="absolute w-full h-[1px] bg-slate-200/70 rotate-120" />
+                  <div className="absolute w-full h-[1px] bg-slate-200/70 rotate-150" />
 
                   {/* 6 Feature Badges on Rotating Disk */}
                   {/* Seg 1 Top: Ukuran TB/BB */}
@@ -445,7 +555,7 @@ export default function LandingPage({
               <span className="text-slate-600 hover:text-slate-900 cursor-pointer">Padu Padan</span>
             </div>
           </div>
-        </div>
+        </GlyphBackground>
       </section>
 
       {/* ═══════════════════════════ 2.5 LIVE PRODUCT CATALOG (SYNCED WITH AI) ═══════════════════════════ */}
