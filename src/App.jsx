@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import FormattedMessage from './components/FormattedMessage';
 import LandingPage from './components/LandingPage';
-import LoginModal from './components/LoginModal';
+import LoginPage from './components/LoginPage';
 import PresentationPage from './components/PresentationPage';
 import PromoVideoPage from './components/PromoVideoPage';
 import TalaMascot from './components/TalaMascot';
-import talaKedip from './assets/ekspresi/tala-kedip.svg';
+import talakaLogo from './assets/talaka-logo.svg';
 import {
   DEFAULT_BOT_NAME,
   DEFAULT_HONESTY_LEVEL,
@@ -128,7 +128,6 @@ export default function App() {
 
   const [products, setProducts] = useState(() => loadInitialProducts());
   const [currentUser, setCurrentUser] = useState(() => loadInitialUser());
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
   const [sessionId, setSessionId] = useState(() => `sess-${Date.now()}`);
   const contextText = buildTalakaKnowledgeFromProducts(products, showExactStock);
@@ -740,6 +739,17 @@ export default function App() {
       />
     );
   }
+  if (normalizedPath === '/login') {
+    return (
+      <LoginPage
+        onClose={() => navigateTo('/')}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          navigateTo('/');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
@@ -749,7 +759,7 @@ export default function App() {
         onSelectSamplePrompt={handleSelectPromptFromLanding}
         onOpenPresentation={() => navigateTo('/presentasi')}
         currentUser={currentUser}
-        onOpenLogin={() => setShowLoginModal(true)}
+        onOpenLogin={() => navigateTo('/login')}
         onLogout={handleLogout}
         products={products}
         showExactStock={showExactStock}
@@ -772,8 +782,8 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/90 shadow-sm">
             <div className="flex items-center gap-3.5">
               <div className="relative">
-                <div className="h-11 w-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-md shadow-slate-900/5 p-1">
-                  <img src={talaKedip} alt="Talaka AI Logo" className="w-full h-full object-contain" />
+                <div className="h-11 w-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-md shadow-slate-900/5 p-1.5">
+                  <img src={talakaLogo} alt="Talaka AI Logo" className="w-full h-full object-contain" />
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -840,8 +850,8 @@ export default function App() {
             <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-3.5 bg-white/95 backdrop-blur-md z-10">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs p-1">
-                    <img src={talaKedip} alt="Kak Tala Avatar" className="w-full h-full object-contain" />
+                  <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs p-1.5">
+                    <img src={talakaLogo} alt="Kak Tala Avatar" className="w-full h-full object-contain" />
                   </div>
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white" />
                 </div>
@@ -979,8 +989,8 @@ export default function App() {
                 <div className="space-y-5 py-2">
                   <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs relative overflow-hidden">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs p-1">
-                        <img src={talaKedip} alt="Kak Tala" className="w-full h-full object-contain" />
+                      <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs p-1.5">
+                        <img src={talakaLogo} alt="Kak Tala" className="w-full h-full object-contain" />
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -1102,8 +1112,8 @@ export default function App() {
                       }`}
                     >
                       {!isUser && (
-                        <div className="w-8 h-8 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 mb-1 shadow-2xs p-0.5">
-                          <img src={talaKedip} alt="Kak Tala" className="w-full h-full object-contain" />
+                        <div className="w-8 h-8 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 mb-1 shadow-2xs p-1">
+                          <img src={talakaLogo} alt="Kak Tala" className="w-full h-full object-contain" />
                         </div>
                       )}
 
@@ -1346,8 +1356,8 @@ export default function App() {
               {/* Typing Bounce Indicator */}
               {isSending && (
                 <div className="flex gap-3 items-end justify-start">
-                  <div className="w-8 h-8 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs p-0.5">
-                    <img src={talaKedip} alt="Kak Tala" className="w-full h-full object-contain" />
+                  <div className="w-8 h-8 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs p-1">
+                    <img src={talakaLogo} alt="Kak Tala" className="w-full h-full object-contain" />
                   </div>
                   <div className="rounded-3xl rounded-bl-xs border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600 shadow-xs flex items-center gap-2.5">
                     <span className="inline-flex gap-1.5">
@@ -1846,13 +1856,6 @@ export default function App() {
           </form>
         </div>
       )}
-
-      {/* Login Dasar Modal (Supabase Profiles) */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        onAuthSuccess={(user) => setCurrentUser(user)}
-      />
     </div>
   );
 }

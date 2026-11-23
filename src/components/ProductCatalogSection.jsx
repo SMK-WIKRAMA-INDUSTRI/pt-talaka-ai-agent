@@ -360,8 +360,13 @@ export default function ProductCatalogSection({
   return (
     <section
       id="katalog-produk"
-      className="relative py-24 bg-white border-t border-slate-200/80"
+      className="relative py-24 bg-white"
     >
+      {/* Soft diffused mist transition from Hero section */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -top-12 h-24 bg-gradient-to-b from-transparent via-white/85 to-white blur-md"
+      />
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6 space-y-10">
         {/* Header & Live Sync Banner */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">

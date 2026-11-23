@@ -68,39 +68,39 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* ── Connector guide track (Crisp tech dashed line) ── */
+  /* ── Connector guide track (Clean warm hairline dashed path) ── */
   .connector-track {
-    stroke: #E2E8F0;
-    stroke-width: 1.2;
-    stroke-dasharray: 4 8;
+    stroke: #E6DDD4;
+    stroke-width: 1;
+    stroke-dasharray: 3 7;
     stroke-linecap: round;
-    opacity: 0.85;
+    opacity: 0.72;
     fill: none;
   }
 
-  /* ── Connector pulse (High-Tech Flow Pulse - Multi-pulse train) ── */
+  /* ── Connector pulse (Refined warm monochrome flow pulse) ── */
   .connector-pulse {
-    stroke-width: 2.8;
-    stroke-dasharray: 14 26;
+    stroke-width: 1.75;
+    stroke-dasharray: 10 42;
     stroke-linecap: round;
-    opacity: 0.95;
+    opacity: 0.68;
     fill: none;
-    animation: dash-flow 3.2s linear infinite;
+    animation: dash-flow 3.8s linear infinite;
   }
 
-  /* ── Arch / wheel outlines (Tech HUD Circles) ── */
+  /* ── Arch / wheel outlines (Subtle warm HUD Circles) ── */
   .arch-line {
-    stroke: #E2E8F0;
-    stroke-width: 1.5;
+    stroke: #EAE3DC;
+    stroke-width: 1.25;
     fill: none;
   }
 
   /* ── Dashed decorative ring ── */
   .ring-dashed {
-    stroke: #CBD5E1;
+    stroke: #DDD3C8;
     stroke-width: 1;
     stroke-dasharray: 4 6;
-    opacity: 0.75;
+    opacity: 0.68;
     fill: none;
   }
 
@@ -125,11 +125,11 @@
       radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.22) 1px, transparent 0);
   }
 
-  /* ── High-Tech Floating node icon bubble ── */
+  /* ── Refined Floating node icon bubble ── */
   .node-card {
-    @apply absolute flex items-center justify-center rounded-2xl
+    @apply absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-2xl
            cursor-pointer transition-all duration-300
-           hover:scale-125 hover:z-30 hover:brightness-110;
+           hover:scale-115 hover:z-40;
     will-change: transform;
   }
 
