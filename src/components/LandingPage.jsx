@@ -121,6 +121,9 @@ export default function LandingPage({
   onScrollToChat,
   onSelectSamplePrompt,
   onOpenPresentation,
+  currentUser,
+  onOpenLogin,
+  onLogout,
   products,
   showExactStock,
   onUpdateStock,
@@ -320,18 +323,49 @@ export default function LandingPage({
               <button
                 type="button"
                 onClick={onOpenPresentation}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-400 hover:text-slate-950 transition-all cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-400 hover:text-slate-950 transition-all cursor-pointer"
               >
                 <span>Presentasi</span>
               </button>
             )}
+
+            {currentUser ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 pl-2.5 pr-1.5 py-1 text-xs">
+                <span className="font-bold text-slate-900 max-w-[90px] truncate">
+                  {currentUser.username}
+                </span>
+                {currentUser.role === 'admin' && (
+                  <span className="rounded-full bg-[#9E7B66]/15 text-[#9E7B66] px-1.5 py-0.5 text-[9px] font-mono font-bold">
+                    ADMIN
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition cursor-pointer"
+                >
+                  Keluar
+                </button>
+              </div>
+            ) : (
+              onOpenLogin && (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition-all cursor-pointer"
+                >
+                  <span>Masuk</span>
+                </button>
+              )
+            )}
+
             <button
               type="button"
               onClick={onScrollToChat}
-              className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-all cursor-pointer"
             >
               <Cpu className="h-3.5 w-3.5 text-[#9E7B66]" />
-              <span>Mulai Chatbot</span>
+              <span className="hidden sm:inline">Chatbot</span>
             </button>
           </div>
         </nav>
@@ -562,6 +596,8 @@ export default function LandingPage({
       <ProductCatalogSection
         products={products}
         showExactStock={showExactStock}
+        isAdmin={currentUser?.role === 'admin'}
+        onOpenLogin={onOpenLogin}
         onUpdateStock={onUpdateStock}
         onResetProducts={onResetProducts}
         onAskProduct={onAskProduct}

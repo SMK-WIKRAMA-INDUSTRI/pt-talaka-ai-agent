@@ -332,12 +332,15 @@ function ProductCard({
 export default function ProductCatalogSection({
   products = [],
   showExactStock = false,
+  isAdmin = false,
+  onOpenLogin,
   onUpdateStock,
   onResetProducts,
   onAskProduct,
 }) {
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [isAdminSimMode, setIsAdminSimMode] = useState(false);
+  const canEditStock = isAdmin && isAdminSimMode;
 
   const categories = useMemo(() => {
     const present = new Set(products.map((p) => p.category));
@@ -393,37 +396,52 @@ export default function ProductCatalogSection({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsAdminSimMode((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
-                isAdminSimMode
-                  ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>
-                {isAdminSimMode ? 'Mode Admin: AKTIF' : 'Simulasi Ubah Stok'}
-              </span>
-            </button>
+            {isAdmin ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsAdminSimMode((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
+                    canEditStock
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>
+                    {canEditStock ? 'Kelola Stok: AKTIF' : 'Kelola Stok Live'}
+                  </span>
+                </button>
 
-            {isAdminSimMode && (
-              <button
-                type="button"
-                onClick={onResetProducts}
-                className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                title="Kembalikan stok awal"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Reset</span>
-              </button>
+                {canEditStock && (
+                  <button
+                    type="button"
+                    onClick={onResetProducts}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    title="Kembalikan stok awal"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              onOpenLogin && (
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-900 transition cursor-pointer"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Login Admin (Kelola Stok)</span>
+                </button>
+              )
             )}
           </div>
         </div>
 
         {/* Notice when Admin Sim Mode Active */}
-        {isAdminSimMode && (
+        {canEditStock && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-900">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -482,7 +500,7 @@ export default function ProductCatalogSection({
               key={product.sku}
               product={product}
               showExactStock={showExactStock}
-              isAdminSimMode={isAdminSimMode}
+              isAdminSimMode={canEditStock}
               onUpdateStock={onUpdateStock}
               onAskProduct={onAskProduct}
             />

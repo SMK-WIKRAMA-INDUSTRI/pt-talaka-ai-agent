@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import FormattedMessage from './components/FormattedMessage';
 import LandingPage from './components/LandingPage';
+import LoginModal from './components/LoginModal';
 import PresentationPage from './components/PresentationPage';
+import PromoVideoPage from './components/PromoVideoPage';
 import TalaMascot from './components/TalaMascot';
 import talaKedip from './assets/ekspresi/tala-kedip.svg';
 import {
   DEFAULT_BOT_NAME,
   DEFAULT_HONESTY_LEVEL,
   DEFAULT_MODEL,
-  HONESTY_OPTIONS,
-  MAX_CONTEXT_CHARS,
-  QUICK_PROMPTS,
 } from './config/botPrompt';
 import {
   buildTalakaKnowledgeFromProducts,
@@ -18,10 +17,26 @@ import {
   findMentionedProducts,
 } from './data/talakaCatalog';
 import { askDeepSeek, hasDeepSeekApiKey } from './services/deepseek';
+import {
+  hasDeepgramApiKey,
+  synthesizeSpeechWithDeepgram,
+  transcribeAudioWithDeepgram,
+} from './services/deepgram';
 import { runVirtualTryOn } from './services/gemini';
 import {
+  exportLookbookPdf,
+  extractTextFromPdfFile,
+} from './services/pdfService';
+import {
+  createHandoffTicketInDb,
+  fetchLiveProducts,
+  isSupabaseConfigured,
+  resetProductsInDb,
+  saveChatMessageToDb,
+  updateProductSizesInDb,
+} from './services/supabase';
+import {
   Sparkles,
-  Bot,
   Send,
   Trash2,
   Phone,
@@ -31,33 +46,36 @@ import {
   Shirt,
   Ruler,
   ShoppingBag,
-  Sliders,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
   RefreshCw,
-  Eye,
   Tag,
   AlertCircle,
-  HelpCircle,
-  ArrowUpRight,
   Store,
-  Layers,
   Camera,
-  CheckCircle2,
-  Terminal,
-  Cpu,
   Activity,
+  FileText,
+  FileDown,
+  Mic,
+  Square,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
-  model: 'talaka_cs_model_v2',
-  botName: 'talaka_fashion_bot_name',
-  honestyLevel: 'talaka_fashion_honesty',
-  showExactStock: 'talaka_fashion_exact_stock',
-  contextText: 'talaka_fashion_context_v3',
   products: 'talaka_live_products_v2',
+  authUser: 'talaka_auth_user_v1',
 };
+
+function loadInitialUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.authUser);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.username) return parsed;
+  } catch {
+    // Abaikan jika rusak
+  }
+  return null;
+}
 
 function loadInitialProducts() {
   try {
@@ -71,14 +89,6 @@ function loadInitialProducts() {
     // Gunakan default jika localStorage rusak
   }
   return cloneInitialProducts();
-}
-
-function readStorage(key, fallback = '') {
-  try {
-    return localStorage.getItem(key) ?? fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 function writeStorage(key, value) {
@@ -110,29 +120,18 @@ export default function App() {
     }
   };
 
-  const [model, setModel] = useState(
-    () => readStorage(STORAGE_KEYS.model) || DEFAULT_MODEL
-  );
-  const [botName, setBotName] = useState(
-    () => readStorage(STORAGE_KEYS.botName) || DEFAULT_BOT_NAME
-  );
-  const [honestyLevel, setHonestyLevel] = useState(
-    () => readStorage(STORAGE_KEYS.honestyLevel) || DEFAULT_HONESTY_LEVEL
-  );
+  // Konfigurasi AI dikunci di code (AI otomatis menganalisis nada respons user)
+  const model = DEFAULT_MODEL;
+  const botName = DEFAULT_BOT_NAME;
+  const honestyLevel = DEFAULT_HONESTY_LEVEL;
+  const showExactStock = false;
+
   const [products, setProducts] = useState(() => loadInitialProducts());
-  const [showExactStock, setShowExactStock] = useState(
-    () => readStorage(STORAGE_KEYS.showExactStock) === 'true'
-  );
-  const [contextText, setContextText] = useState(() => {
-    const saved = readStorage(STORAGE_KEYS.contextText);
-    return (
-      saved ||
-      buildTalakaKnowledgeFromProducts(
-        loadInitialProducts(),
-        readStorage(STORAGE_KEYS.showExactStock) === 'true'
-      )
-    );
-  });
+  const [currentUser, setCurrentUser] = useState(() => loadInitialUser());
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isDbConnected, setIsDbConnected] = useState(false);
+  const [sessionId, setSessionId] = useState(() => `sess-${Date.now()}`);
+  const contextText = buildTalakaKnowledgeFromProducts(products, showExactStock);
   const [activePageContext, setActivePageContext] = useState('beranda');
 
   const [messages, setMessages] = useState([]);
@@ -145,19 +144,34 @@ export default function App() {
   const [handoffSent, setHandoffSent] = useState(false);
   const [showFashionMenu, setShowFashionMenu] = useState(false);
   const [attachedImage, setAttachedImage] = useState(null);
+  const [attachedPdf, setAttachedPdf] = useState(null);
+  const [isReadingPdf, setIsReadingPdf] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [voiceFeedbackEnabled, setVoiceFeedbackEnabled] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [speakingMessageIdx, setSpeakingMessageIdx] = useState(null);
+  const [isSynthesizingSpeech, setIsSynthesizingSpeech] = useState(false);
   const [showTryOnModal, setShowTryOnModal] = useState(false);
   const [tryOnBodyImage, setTryOnBodyImage] = useState(null);
   const [tryOnOutfitImage, setTryOnOutfitImage] = useState(null);
   const [tryOnNote, setTryOnNote] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showFaqEditor, setShowFaqEditor] = useState(false);
 
-  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
   const chatInputRef = useRef(null);
   const fashionMenuRef = useRef(null);
   const chatWorkspaceRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const activeAudioRef = useRef(null);
+  const activeAudioUrlRef = useRef(null);
+  const speechSessionRef = useRef(0);
   const hasApiKey = hasDeepSeekApiKey();
+  const hasDeepgramKey = hasDeepgramApiKey();
 
   const scrollToChat = () => {
     if (chatWorkspaceRef.current) {
@@ -191,33 +205,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    writeStorage(STORAGE_KEYS.model, model);
-  }, [model]);
-
-  useEffect(() => {
-    writeStorage(STORAGE_KEYS.botName, botName);
-  }, [botName]);
-
-  useEffect(() => {
-    writeStorage(STORAGE_KEYS.honestyLevel, honestyLevel);
-  }, [honestyLevel]);
-
-  useEffect(() => {
-    writeStorage(STORAGE_KEYS.showExactStock, String(showExactStock));
-  }, [showExactStock]);
-
-  useEffect(() => {
-    writeStorage(STORAGE_KEYS.contextText, contextText);
-  }, [contextText]);
-
-  useEffect(() => {
     writeStorage(STORAGE_KEYS.products, JSON.stringify(products));
   }, [products]);
 
-  // Hanya auto-scroll ke bawah saat pengguna/bot benar-benar mengirim pesan baru, bukan saat awal render
   useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    try {
+      if (currentUser) {
+        localStorage.setItem(STORAGE_KEYS.authUser, JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.authUser);
+      }
+    } catch {
+      // Abaikan
+    }
+  }, [currentUser]);
+
+  function handleLogout() {
+    setCurrentUser(null);
+  }
+
+  // Sinkronisasi awal produk & stok live dari Supabase (jika .env sudah diisi)
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let active = true;
+    fetchLiveProducts().then((dbProducts) => {
+      if (!active) return;
+      if (dbProducts && dbProducts.length > 0) {
+        setProducts(dbProducts);
+        setIsDbConnected(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Scroll hanya di dalam kotak chat (tidak menarik scroll halaman luar)
+  useEffect(() => {
+    if (messages.length > 0 && chatContainerRef.current) {
+      const box = chatContainerRef.current;
+      box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
     }
   }, [messages, isSending]);
 
@@ -234,44 +261,189 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  function handleResetContext() {
-    const fresh = buildTalakaKnowledgeFromProducts(products, showExactStock);
-    setContextText(fresh);
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (activeAudioUrlRef.current) {
+        URL.revokeObjectURL(activeAudioUrlRef.current);
+        activeAudioUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  function stopAiSpeech() {
+    speechSessionRef.current += 1;
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if (activeAudioUrlRef.current) {
+      URL.revokeObjectURL(activeAudioUrlRef.current);
+      activeAudioUrlRef.current = null;
+    }
+    setSpeakingMessageIdx(null);
+    setIsSynthesizingSpeech(false);
+  }
+
+  async function playAiSpeech(text, messageIdx) {
+    if (!hasDeepgramKey) {
+      setError('Token Deepgram belum diisi di file .env.');
+      return;
+    }
+    if (speakingMessageIdx === messageIdx) {
+      stopAiSpeech();
+      return;
+    }
+
+    stopAiSpeech();
+    const sessionToken = speechSessionRef.current;
+    setSpeakingMessageIdx(messageIdx);
+    setIsSynthesizingSpeech(true);
+
+    try {
+      const audioUrl = await synthesizeSpeechWithDeepgram(text);
+      if (speechSessionRef.current !== sessionToken) {
+        URL.revokeObjectURL(audioUrl);
+        return;
+      }
+
+      activeAudioUrlRef.current = audioUrl;
+      const audio = new Audio(audioUrl);
+      activeAudioRef.current = audio;
+
+      audio.onended = () => {
+        if (speechSessionRef.current === sessionToken) {
+          stopAiSpeech();
+        }
+      };
+      audio.onerror = () => {
+        if (speechSessionRef.current === sessionToken) {
+          stopAiSpeech();
+        }
+      };
+
+      setIsSynthesizingSpeech(false);
+      await audio.play();
+    } catch (err) {
+      if (speechSessionRef.current === sessionToken) {
+        stopAiSpeech();
+      }
+      if (err?.name !== 'NotAllowedError') {
+        setError(err.message || 'Gagal memutar suara balasan Deepgram.');
+      }
+    }
+  }
+
+  async function handleToggleRecording() {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    if (!hasDeepgramKey) {
+      setError(
+        'API key Deepgram belum diisi. Tambahkan VITE_DEEPGRAM_API_KEY di file .env.'
+      );
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Browser ini tidak mendukung perekaman mikrofon.');
+      return;
+    }
+
+    stopAiSpeech();
+    setError('');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+      const recorder = preferredMime
+        ? new MediaRecorder(stream, { mimeType: preferredMime })
+        : new MediaRecorder(stream);
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        stream.getTracks().forEach((track) => track.stop());
+        setIsRecording(false);
+        setRecordingSeconds(0);
+
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        });
+
+        if (audioBlob.size === 0) return;
+
+        setIsTranscribing(true);
+        try {
+          const transcript = await transcribeAudioWithDeepgram(audioBlob);
+          setIsTranscribing(false);
+          sendQuestion(transcript, undefined, { fromVoice: true });
+        } catch (err) {
+          setIsTranscribing(false);
+          setError(err.message || 'Gagal menerjemahkan suara lewat Deepgram.');
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      setError(
+        'Akses mikrofon ditolak atau tidak tersedia. Izinkan mikrofon di browser untuk fitur voice.'
+      );
+    }
   }
 
   function handleResetProducts() {
-    const freshProducts = cloneInitialProducts();
-    setProducts(freshProducts);
-    setContextText(buildTalakaKnowledgeFromProducts(freshProducts, showExactStock));
+    const fresh = cloneInitialProducts();
+    setProducts(fresh);
+    resetProductsInDb(fresh);
   }
 
   function handleUpdateProductStock(sku, color, size, delta) {
-    setProducts((prev) => {
-      const nextProducts = prev.map((prod) => {
+    setProducts((prev) =>
+      prev.map((prod) => {
         if (prod.sku !== sku) return prod;
         const currentQty = prod.sizes?.[color]?.[size] ?? 0;
         const nextQty = Math.max(0, currentQty + delta);
-        return {
-          ...prod,
-          sizes: {
-            ...prod.sizes,
-            [color]: {
-              ...prod.sizes[color],
-              [size]: nextQty,
-            },
+        const nextSizes = {
+          ...prod.sizes,
+          [color]: {
+            ...prod.sizes[color],
+            [size]: nextQty,
           },
         };
-      });
-      setContextText(
-        buildTalakaKnowledgeFromProducts(nextProducts, showExactStock)
-      );
-      return nextProducts;
-    });
-  }
-
-  function handleToggleExactStock(nextChecked) {
-    setShowExactStock(nextChecked);
-    setContextText(buildTalakaKnowledgeFromProducts(products, nextChecked));
+        updateProductSizesInDb(sku, nextSizes);
+        return {
+          ...prod,
+          sizes: nextSizes,
+        };
+      })
+    );
   }
 
   function readImageAsAttachment(file, onReady) {
@@ -308,6 +480,44 @@ export default function App() {
     });
     e.target.value = '';
     setShowFashionMenu(false);
+  }
+
+  async function handleSelectPdfFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setShowFashionMenu(false);
+    if (!file) return;
+
+    setIsReadingPdf(true);
+    setError('');
+    try {
+      const parsed = await extractTextFromPdfFile(file);
+      setAttachedPdf(parsed);
+      chatInputRef.current?.focus();
+    } catch (err) {
+      setError(err.message || 'Gagal membaca file PDF.');
+    } finally {
+      setIsReadingPdf(false);
+    }
+  }
+
+  async function handleExportLookbook() {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    setError('');
+    try {
+      await exportLookbookPdf({
+        messages,
+        products,
+        customerName:
+          currentUser?.fullName || currentUser?.username || 'Pelanggan Talaka',
+        botName: displayBotName,
+      });
+    } catch (err) {
+      setError(err.message || 'Gagal membuat file PDF Lookbook.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   }
 
   async function handleRunVirtualTryOn(e) {
@@ -367,10 +577,11 @@ export default function App() {
     chatInputRef.current?.focus();
   }
 
-  async function sendQuestion(questionText, overridePageContext) {
+  async function sendQuestion(questionText, overridePageContext, options = {}) {
     const rawText = (questionText ?? input).trim();
     const currentImage = questionText === undefined ? attachedImage : null;
-    if ((!rawText && !currentImage) || isSending) return;
+    const currentPdf = questionText === undefined ? attachedPdf : null;
+    if ((!rawText && !currentImage && !currentPdf) || isSending) return;
 
     if (!hasApiKey) {
       setError('API key belum diisi di file .env.');
@@ -378,16 +589,41 @@ export default function App() {
     }
 
     const displayContent =
-      rawText || 'Gimana pendapat kamu soal foto outfit ini? Cocok nggak?';
-    const apiContent = currentImage
-      ? `${displayContent}\n\n[Pelanggan melampirkan foto outfit: "${currentImage.name}". Berikan respon sesuai prinsip kejujuran suportif PRD GYA-13.]`
-      : displayContent;
+      rawText ||
+      (currentPdf
+        ? `Tolong analisis file PDF "${currentPdf.fileName}" ini (acara / jadwal / setlist) dan kasih rekomendasi outfit Talaka per hari atau sesinya ya!`
+        : 'Gimana pendapat kamu soal foto outfit ini? Cocok nggak?');
+
+    const extraParts = [];
+    if (currentImage) {
+      extraParts.push(
+        `[Pelanggan melampirkan foto outfit: "${currentImage.name}". Berikan respon sesuai prinsip kejujuran suportif PRD GYA-13.]`
+      );
+    }
+    if (currentPdf) {
+      extraParts.push(
+        `[DOKUMEN PDF TERLAMPIR: "${currentPdf.fileName}" (${currentPdf.pageCount} halaman)]\n${currentPdf.text}\n[INSTRUKSI ANALISIS PDF: Baca acara, dresscode, jadwal per hari (Hari 1, Hari 2, dst.), atau setlist dari dokumen di atas. Susun rekomendasi outfit lengkap per hari/acara memakai produk nyata dari katalog Talaka beserta SKU-nya agar foto produk otomatis tampil di kartu & Lookbook PDF.]`
+      );
+    }
+
+    const apiContent =
+      extraParts.length > 0
+        ? `${displayContent}\n\n${extraParts.join('\n\n')}`
+        : displayContent;
 
     const userMessage = {
       role: 'user',
       content: displayContent,
       apiContent,
+      fromVoice: Boolean(options.fromVoice),
       image: currentImage,
+      pdfAttachment: currentPdf
+        ? {
+            fileName: currentPdf.fileName,
+            pageCount: currentPdf.pageCount,
+            preview: currentPdf.preview,
+          }
+        : null,
     };
 
     const nextHistory = [...messages, userMessage];
@@ -395,10 +631,21 @@ export default function App() {
     if (questionText === undefined) {
       setInput('');
       setAttachedImage(null);
+      setAttachedPdf(null);
     }
     setShowFashionMenu(false);
     setError('');
     setIsSending(true);
+
+    const effectivePageContext = overridePageContext ?? activePageContext;
+    const activeUsername = currentUser?.username || 'guest';
+    saveChatMessageToDb({
+      sessionId,
+      username: activeUsername,
+      role: 'user',
+      content: displayContent,
+      pageContext: effectivePageContext,
+    });
 
     try {
       const apiHistory = nextHistory.map((m) => ({
@@ -410,11 +657,23 @@ export default function App() {
         botName,
         honestyLevel,
         showExactStock,
-        activePageContext: overridePageContext ?? activePageContext,
+        activePageContext: effectivePageContext,
         contextText,
         history: apiHistory,
       });
+      const assistantIdx = nextHistory.length;
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      saveChatMessageToDb({
+        sessionId,
+        username: activeUsername,
+        role: 'assistant',
+        content: reply,
+        pageContext: effectivePageContext,
+      });
+
+      if (voiceFeedbackEnabled && hasDeepgramKey) {
+        playAiSpeech(reply, assistantIdx);
+      }
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungi API.');
     } finally {
@@ -435,13 +694,25 @@ export default function App() {
   }
 
   function handleClearChat() {
+    stopAiSpeech();
     setMessages([]);
     setError('');
     setHandoffSent(false);
+    setSessionId(`sess-${Date.now()}`);
   }
 
   function handleManualHandoff() {
     setHandoffSent(true);
+    const recentSummary =
+      messages
+        .slice(-4)
+        .map((m) => `${m.role}: ${m.content.slice(0, 120)}`)
+        .join(' | ') || 'Pelanggan meminta terhubung langsung dengan admin.';
+    createHandoffTicketInDb({
+      sessionId,
+      username: currentUser?.username || 'guest',
+      summary: `[${activePageContext}] ${recentSummary}`,
+    });
     sendQuestion('Saya mau bicara langsung dengan admin manusia');
   }
 
@@ -457,8 +728,17 @@ export default function App() {
 
   const displayBotName = botName.trim() || DEFAULT_BOT_NAME;
 
-  if (pathname.replace(/\/+$/, '') === '/presentasi') {
+  const normalizedPath = pathname.replace(/\/+$/, '');
+  if (normalizedPath === '/presentasi') {
     return <PresentationPage onGoHome={() => navigateTo('/')} />;
+  }
+  if (normalizedPath === '/promo') {
+    return (
+      <PromoVideoPage
+        onGoHome={() => navigateTo('/')}
+        onOpenPresentation={() => navigateTo('/presentasi')}
+      />
+    );
   }
 
   return (
@@ -468,6 +748,9 @@ export default function App() {
         onScrollToChat={scrollToChat}
         onSelectSamplePrompt={handleSelectPromptFromLanding}
         onOpenPresentation={() => navigateTo('/presentasi')}
+        currentUser={currentUser}
+        onOpenLogin={() => setShowLoginModal(true)}
+        onLogout={handleLogout}
         products={products}
         showExactStock={showExactStock}
         onUpdateStock={handleUpdateProductStock}
@@ -485,7 +768,7 @@ export default function App() {
         <div className="absolute inset-0 bg-tech-grid opacity-50 pointer-events-none -z-10" />
 
         {/* Top Control Bar / High-Tech Console Banner */}
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 mb-6">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/90 shadow-sm">
             <div className="flex items-center gap-3.5">
               <div className="relative">
@@ -504,7 +787,7 @@ export default function App() {
                   </h2>
                   <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[10px] font-mono font-bold text-slate-700">
                     <Activity className="w-3 h-3 text-emerald-500" />
-                    ENGINE_LIVE
+                    {isDbConnected ? 'SUPABASE_LIVE' : 'LOCAL_MODE'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 font-normal">
@@ -535,23 +818,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Toggle Sidebar Button */}
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition cursor-pointer ${
-                  isSidebarOpen
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
-                }`}
-                title="Tampilkan / Sembunyikan Panel Studio"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {isSidebarOpen ? 'Tutup Panel Studio' : 'Buka Parameter'}
-                </span>
-              </button>
-
               {/* Scroll to Top Button */}
               <button
                 type="button"
@@ -566,197 +832,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Main 2-Column Workspace */}
-        <main
-          className={`mx-auto max-w-7xl px-4 sm:px-6 grid gap-6 items-start transition-all ${
-            isSidebarOpen
-              ? 'grid-cols-1 lg:grid-cols-[340px_1fr]'
-              : 'grid-cols-1'
-          }`}
-        >
-          {/* Left Panel: High-Tech Studio & Parameter Console */}
-          {isSidebarOpen && (
-            <aside className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
-                    <Sliders className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-950 font-mono">
-                      AI_STUDIO_PARAMS
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-normal">
-                      Konfigurasi karakter &amp; respons
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600">
-                  GYA-13
-                </span>
-              </div>
-
-              {/* 1. Nama Chatbot */}
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="bot-name"
-                  className="block text-xs font-bold text-slate-800 font-mono"
-                >
-                  BOT_NAME
-                </label>
-                <div className="relative">
-                  <input
-                    id="bot-name"
-                    type="text"
-                    value={botName}
-                    onChange={(e) => setBotName(e.target.value)}
-                    placeholder={DEFAULT_BOT_NAME}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-slate-900 focus:outline-none transition"
-                  />
-                  <Bot className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* 2. Gaya Kejujuran (Honesty Level) - Sleek Tech Segmented Cards */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-800 font-mono">
-                    HONESTY_MODE
-                  </label>
-                  <span className="text-[10px] font-mono text-[#9E7B66]">
-                    GYA-13 SPEC
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {HONESTY_OPTIONS.map((opt) => {
-                    const isSelected = honestyLevel === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setHonestyLevel(opt.value)}
-                        className={`text-left rounded-2xl p-3 border transition cursor-pointer flex flex-col gap-1 ${
-                          isSelected
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                            : 'bg-slate-50/80 text-slate-800 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold flex items-center gap-1.5">
-                            {opt.value === 'terus-terang' && '🌟'}
-                            {opt.value === 'seimbang' && '⚖️'}
-                            {opt.value === 'lembut' && '🌸'}
-                            {opt.label}
-                          </span>
-                          {isSelected && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          )}
-                        </div>
-                        <p
-                          className={`text-[11px] leading-tight ${
-                            isSelected ? 'text-slate-300' : 'text-slate-500'
-                          }`}
-                        >
-                          {opt.instruction}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 3. Tampilkan Angka Stok Persis Toggle */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold text-slate-900 font-mono">
-                    EXACT_STOCK_METRIC
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    {showExactStock
-                      ? 'Menyebutkan sisa angka stok persis (cth: "Sisa 2 pcs")'
-                      : 'Status aman/menipis (cth: "Tersedia", "Stok menipis")'}
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={showExactStock}
-                    onChange={(e) => handleToggleExactStock(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900" />
-                </label>
-              </div>
-
-              {/* 4. Model & Knowledge Accordion */}
-              <div className="border-t border-slate-100 pt-3 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowFaqEditor((prev) => !prev)}
-                  className="w-full flex items-center justify-between text-xs font-bold text-slate-800 hover:text-slate-950 cursor-pointer font-mono"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Terminal className="w-3.5 h-3.5 text-slate-500" />
-                    KNOWLEDGE_BASE_CONFIG
-                  </span>
-                  {showFaqEditor ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
-                </button>
-
-                {showFaqEditor && (
-                  <div className="space-y-2 pt-1">
-                    <div className="space-y-1">
-                      <label
-                        htmlFor="model-input"
-                        className="block text-[11px] font-mono font-semibold text-slate-500"
-                      >
-                        ENGINE_MODEL
-                      </label>
-                      <input
-                        id="model-input"
-                        type="text"
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        placeholder={DEFAULT_MODEL}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-slate-900 focus:outline-none font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label
-                          htmlFor="context-text"
-                          className="block text-[11px] font-mono font-semibold text-slate-500"
-                        >
-                          FAQ_&amp;_PROMPT_CONTEXT
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleResetContext}
-                          className="text-[10px] font-mono font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-                        >
-                          <RefreshCw className="w-2.5 h-2.5" /> RESET
-                        </button>
-                      </div>
-                      <textarea
-                        id="context-text"
-                        rows={6}
-                        maxLength={MAX_CONTEXT_CHARS}
-                        value={contextText}
-                        onChange={(e) => setContextText(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-[11px] font-mono leading-relaxed text-slate-800 focus:bg-white focus:border-slate-900 focus:outline-none resize-y"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </aside>
-          )}
-
-          {/* Right Panel: High-Tech Chat Sandbox Playground */}
+        {/* Main Centered Chat Studio */}
+        <main className="mx-auto max-w-5xl px-4 sm:px-6">
+          {/* Chat Sandbox Playground */}
           <section className="bg-white rounded-3xl border border-slate-200/90 shadow-md flex flex-col h-[740px] max-h-[85vh] overflow-hidden relative">
             {/* Header Ruang Konsultasi */}
             <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-3.5 bg-white/95 backdrop-blur-md z-10">
@@ -784,6 +862,56 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
+                {hasDeepgramKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVoiceFeedbackEnabled((prev) => {
+                        const next = !prev;
+                        if (!next) stopAiSpeech();
+                        return next;
+                      });
+                    }}
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      voiceFeedbackEnabled
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                    }`}
+                    title={
+                      voiceFeedbackEnabled
+                        ? 'Balasan suara otomatis Kak Tala aktif (klik untuk matikan)'
+                        : 'Balasan suara otomatis nonaktif (klik untuk aktifkan)'
+                    }
+                  >
+                    {voiceFeedbackEnabled ? (
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                    <span className="hidden md:inline">
+                      {voiceFeedbackEnabled ? 'Suara ON' : 'Suara OFF'}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleExportLookbook}
+                  disabled={
+                    isExportingPdf ||
+                    !messages.some((m) => m.role === 'assistant')
+                  }
+                  className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black transition flex items-center gap-1.5 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                  title="Export rekomendasi outfit & foto produk ke Lookbook PDF"
+                >
+                  {isExportingPdf ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#9E7B66]" />
+                  ) : (
+                    <FileDown className="w-3.5 h-3.5 text-[#9E7B66]" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isExportingPdf ? 'Membuat PDF...' : 'Export PDF'}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={handleManualHandoff}
@@ -832,7 +960,10 @@ export default function App() {
             )}
 
             {/* Area Pesan Chat */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 sm:pb-24 space-y-5 bg-slate-50/40">
+            <div
+              ref={chatContainerRef}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 sm:pb-24 space-y-5 bg-slate-50/40"
+            >
               {error && (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-3.5 text-xs font-semibold text-rose-800 flex items-start gap-2.5">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -994,6 +1125,21 @@ export default function App() {
                           </div>
                         )}
 
+                        {/* Attached PDF Badge */}
+                        {msg.pdfAttachment && (
+                          <div className="mb-2.5 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 flex items-center gap-2.5 text-xs">
+                            <FileText className="w-4 h-4 text-[#D6B7A5] shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-bold truncate">
+                                {msg.pdfAttachment.fileName}
+                              </div>
+                              <div className="text-[10px] opacity-80 font-mono">
+                                PDF · {msg.pdfAttachment.pageCount} halaman dianalisis
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Multiple Images (e.g. Virtual Try-On Inputs) */}
                         {msg.images?.length > 0 && (
                           <div className="mb-3 grid grid-cols-2 gap-2.5">
@@ -1030,6 +1176,14 @@ export default function App() {
                           </div>
                         )}
 
+                        {/* Voice Input Indicator */}
+                        {isUser && msg.fromVoice && (
+                          <div className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-mono font-semibold text-white/90">
+                            <Mic className="w-2.5 h-2.5 text-[#D6B7A5]" />
+                            <span>Pesan Suara</span>
+                          </div>
+                        )}
+
                         {/* Text Message Content */}
                         {isUser ? (
                           <div className="whitespace-pre-wrap leading-relaxed text-sm">
@@ -1041,30 +1195,66 @@ export default function App() {
 
                         {/* Bot Message Action Toolbar */}
                         {!isUser && (
-                          <div className="mt-2.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                          <div className="mt-2.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-3 text-[11px] text-slate-400 font-mono">
                             <span className="text-[10px]">
                               {displayBotName} · TALAKA_AI
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(msg.content, idx)}
-                              className="flex items-center gap-1 font-semibold text-slate-500 hover:text-slate-900 transition cursor-pointer"
-                              title="Salin jawaban"
-                            >
-                              {copiedIndex === idx ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span className="text-emerald-700 font-bold">
-                                    COPIED
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3 h-3" />
-                                  <span>COPY</span>
-                                </>
+                            <div className="flex items-center gap-3">
+                              {hasDeepgramKey && (
+                                <button
+                                  type="button"
+                                  onClick={() => playAiSpeech(msg.content, idx)}
+                                  className={`flex items-center gap-1 font-semibold transition cursor-pointer ${
+                                    speakingMessageIdx === idx
+                                      ? 'text-rose-600 hover:text-rose-700'
+                                      : 'text-slate-500 hover:text-slate-900'
+                                  }`}
+                                  title={
+                                    speakingMessageIdx === idx
+                                      ? 'Hentikan suara'
+                                      : 'Dengarkan balasan ini'
+                                  }
+                                >
+                                  {speakingMessageIdx === idx &&
+                                  isSynthesizingSpeech ? (
+                                    <>
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                      <span>MEMUAT</span>
+                                    </>
+                                  ) : speakingMessageIdx === idx ? (
+                                    <>
+                                      <Square className="w-2.5 h-2.5 fill-current" />
+                                      <span>STOP</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Volume2 className="w-3 h-3" />
+                                      <span>DENGAR</span>
+                                    </>
+                                  )}
+                                </button>
                               )}
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(msg.content, idx)}
+                                className="flex items-center gap-1 font-semibold text-slate-500 hover:text-slate-900 transition cursor-pointer"
+                                title="Salin jawaban"
+                              >
+                                {copiedIndex === idx ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span className="text-emerald-700 font-bold">
+                                      COPIED
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>COPY</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1172,7 +1362,6 @@ export default function App() {
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Area Input Percakapan dengan Maskot Mengambang Langsung di Atasnya */}
@@ -1230,7 +1419,27 @@ export default function App() {
                         </div>
                       </button>
 
-                      {/* 2. Lampirkan 1 Foto Outfit */}
+                      {/* 2. Upload PDF Acara / Undangan / Setlist */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFashionMenu(false);
+                          pdfInputRef.current?.click();
+                        }}
+                        className="w-full flex items-center gap-2.5 rounded-2xl border border-[#9E7B66]/40 bg-[#9E7B66]/5 px-3.5 py-2 text-left text-xs font-semibold text-slate-900 hover:bg-[#9E7B66]/10 transition cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4 text-[#9E7B66] shrink-0" />
+                        <div>
+                          <div className="font-bold">
+                            Upload PDF Acara / Setlist
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Undangan kerja, itinerary harian, dll.
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 3. Lampirkan 1 Foto Outfit */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1292,27 +1501,106 @@ export default function App() {
                 </div>
               </div>
 
-              {attachedImage && (
-                <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 w-fit">
-                  <img
-                    src={attachedImage.previewUrl}
-                    alt={attachedImage.name}
-                    className="h-9 w-9 rounded-xl object-cover border border-slate-200"
-                  />
-                  <span className="text-xs font-semibold text-slate-800 max-w-[180px] truncate">
-                    {attachedImage.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setAttachedImage(null)}
-                    className="rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
-                  >
-                    ×
-                  </button>
+              {(attachedImage ||
+                attachedPdf ||
+                isReadingPdf ||
+                isRecording ||
+                isTranscribing ||
+                speakingMessageIdx !== null) && (
+                <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                  {isRecording && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-600 animate-ping" />
+                      <span className="font-mono">
+                        Merekam {String(Math.floor(recordingSeconds / 60)).padStart(1, '0')}:
+                        {String(recordingSeconds % 60).padStart(2, '0')}
+                      </span>
+                      <span className="text-[11px] font-normal text-rose-600 hidden sm:inline">
+                        · klik Stop untuk kirim ke {displayBotName}
+                      </span>
+                    </div>
+                  )}
+
+                  {isTranscribing && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#9E7B66]" />
+                      <span>Deepgram mengubah suara ke teks...</span>
+                    </div>
+                  )}
+
+                  {speakingMessageIdx !== null && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                      {isSynthesizingSpeech ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                      )}
+                      <span>
+                        {isSynthesizingSpeech
+                          ? 'Menyiapkan suara Kak Tala...'
+                          : `${displayBotName} sedang berbicara...`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={stopAiSpeech}
+                        className="ml-1 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-900 cursor-pointer transition"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  )}
+
+                  {attachedImage && (
+                    <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 w-fit">
+                      <img
+                        src={attachedImage.previewUrl}
+                        alt={attachedImage.name}
+                        className="h-9 w-9 rounded-xl object-cover border border-slate-200"
+                      />
+                      <span className="text-xs font-semibold text-slate-800 max-w-[180px] truncate">
+                        {attachedImage.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachedImage(null)}
+                        className="rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {isReadingPdf && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#9E7B66]" />
+                      <span>Mengekstrak teks PDF...</span>
+                    </div>
+                  )}
+
+                  {attachedPdf && (
+                    <div className="flex items-center gap-2.5 rounded-2xl border border-[#9E7B66]/40 bg-[#9E7B66]/5 px-3 py-1.5 w-fit">
+                      <FileText className="w-4 h-4 text-[#9E7B66] shrink-0" />
+                      <div className="text-xs">
+                        <div className="font-bold text-slate-900 max-w-[200px] truncate">
+                          {attachedPdf.fileName}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500">
+                          {attachedPdf.pageCount} hal · siap dianalisis AI
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAttachedPdf(null)}
+                        className="rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Hidden file input for attachment */}
+              {/* Hidden file inputs for image & PDF attachment */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1320,9 +1608,26 @@ export default function App() {
                 onChange={handleSelectOutfitFile}
                 className="hidden"
               />
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={handleSelectPdfFile}
+                className="hidden"
+              />
 
               <div className="flex items-end gap-2.5">
                 <div className="relative flex-1 flex items-end rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-slate-900 transition">
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRef.current?.click()}
+                    disabled={isReadingPdf || isSending}
+                    className="ml-2 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
+                    title="Upload PDF undangan acara, kerja, atau setlist outfit"
+                    aria-label="Upload PDF"
+                  >
+                    <FileText className="w-4 h-4 text-[#9E7B66]" />
+                  </button>
                   <textarea
                     ref={chatInputRef}
                     id="chat-input"
@@ -1350,14 +1655,45 @@ export default function App() {
                       setCursorPos(e.target.selectionEnd || 0);
                     }}
                     onKeyDown={handleKeyDown}
-                    placeholder={`Tanyakan pada ${displayBotName} soal ukuran TB/BB, padu-padan OOTD, atau stok...`}
-                    className="w-full bg-transparent py-2.5 px-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed"
+                    placeholder={`Tanya ${displayBotName} soal ukuran, gaya, atau upload PDF undangan/setlist...`}
+                    className="w-full bg-transparent py-2.5 pr-4 pl-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed"
                   />
                 </div>
 
                 <button
+                  type="button"
+                  onClick={handleToggleRecording}
+                  disabled={isSending || isTranscribing}
+                  className={`shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    isRecording
+                      ? 'bg-rose-600 text-white hover:bg-rose-700 ring-4 ring-rose-200'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-900 hover:text-slate-950'
+                  }`}
+                  title={
+                    isRecording
+                      ? 'Hentikan rekaman & kirim suara'
+                      : 'Bicara ke Kak Tala (Deepgram Voice)'
+                  }
+                  aria-label={isRecording ? 'Hentikan rekaman' : 'Rekam suara'}
+                >
+                  {isTranscribing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#9E7B66]" />
+                  ) : isRecording ? (
+                    <Square className="w-4 h-4 fill-current text-white" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+
+                <button
                   type="submit"
-                  disabled={isSending || (!input.trim() && !attachedImage)}
+                  disabled={
+                    isSending ||
+                    isReadingPdf ||
+                    isRecording ||
+                    isTranscribing ||
+                    (!input.trim() && !attachedImage && !attachedPdf)
+                  }
                   className="shrink-0 h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer transition-all shadow-xs"
                   title="Kirim pesan"
                 >
@@ -1510,6 +1846,13 @@ export default function App() {
           </form>
         </div>
       )}
+
+      {/* Login Dasar Modal (Supabase Profiles) */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onAuthSuccess={(user) => setCurrentUser(user)}
+      />
     </div>
   );
 }
