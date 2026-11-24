@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Activity,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   MessageCircle,
   Minus,
@@ -18,7 +20,7 @@ import {
   getProductTotalStock,
 } from '../data/talakaCatalog';
 
-const CATEGORY_ORDER = ['Semua', 'Sepatu', 'Atasan', 'Bawahan', 'Outer', 'Dress'];
+const CATEGORY_ORDER = ['Semua', 'Sepatu', 'Atasan', 'Bawahan', 'Outer', 'Dress', 'Aksesoris'];
 
 function ProductCard({
   product,
@@ -329,6 +331,91 @@ function ProductCard({
   );
 }
 
+function ProductRowCarousel({
+  title,
+  subtitle,
+  items,
+  showExactStock,
+  isAdminSimMode,
+  onUpdateStock,
+  onAskProduct,
+}) {
+  const scrollRef = useRef(null);
+
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const scrollAmount = direction === 'left' ? -360 : 360;
+      scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {/* Row Header with navigation buttons */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <span>{title}</span>
+            <span className="text-xs font-mono font-bold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5">
+              {items.length} Produk
+            </span>
+          </h3>
+          {subtitle && (
+            <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+          )}
+        </div>
+
+        {/* Scroll Buttons */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => scroll('left')}
+            className="w-8 h-8 rounded-full border border-slate-200 bg-white shadow-2xs hover:bg-slate-50 hover:border-slate-300 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scroll('right')}
+            className="w-8 h-8 rounded-full border border-slate-200 bg-white shadow-2xs hover:bg-slate-50 hover:border-slate-300 flex items-center justify-center text-slate-600 transition cursor-pointer"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Horizontal Scrollable Row */}
+      <div
+        ref={scrollRef}
+        className="flex gap-6 overflow-x-auto pb-4 pt-1 scroll-smooth no-scrollbar"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {items.map((product) => (
+          <div
+            key={product.sku}
+            className="w-[320px] sm:w-[350px] shrink-0"
+          >
+            <ProductCard
+              product={product}
+              showExactStock={showExactStock}
+              isAdminSimMode={isAdminSimMode}
+              onUpdateStock={onUpdateStock}
+              onAskProduct={onAskProduct}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ProductCatalogSection({
   products = [],
   showExactStock = false,
@@ -498,19 +585,38 @@ export default function ProductCatalogSection({
           })}
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.sku}
-              product={product}
+        {/* Product Grid -> 2 Horizontal Scroll Rows (Max 10 items each) */}
+        {filteredProducts.length === 0 ? (
+          <div className="py-12 text-center text-sm text-slate-500">
+            Tidak ada produk untuk kategori ini.
+          </div>
+        ) : (
+          <div className="space-y-10">
+            {/* Row 1: Maksimal 10 produk pertama */}
+            <ProductRowCarousel
+              title="Koleksi Pilihan &amp; Unggulan"
+              subtitle="Geser ke samping untuk melihat produk lainnya"
+              items={filteredProducts.slice(0, 10)}
               showExactStock={showExactStock}
               isAdminSimMode={canEditStock}
               onUpdateStock={onUpdateStock}
               onAskProduct={onAskProduct}
             />
-          ))}
-        </div>
+
+            {/* Row 2: Maksimal 10 produk berikutnya (jika ada lebih dari 10 produk) */}
+            {filteredProducts.length > 10 && (
+              <ProductRowCarousel
+                title="Rekomendasi Lainnya"
+                subtitle="Pilihan outfit tambahan untuk melengkapi gayamu"
+                items={filteredProducts.slice(10, 20)}
+                showExactStock={showExactStock}
+                isAdminSimMode={canEditStock}
+                onUpdateStock={onUpdateStock}
+                onAskProduct={onAskProduct}
+              />
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

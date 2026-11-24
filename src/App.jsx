@@ -92,7 +92,7 @@ const PRICE_FILTER_OPTIONS = [
 ];
 
 const STORAGE_KEYS = {
-  products: 'talaka_live_products_v2',
+  products: 'talaka_live_products_v8',
   authUser: 'talaka_auth_user_v1',
   guestChatCount: 'talaka_guest_chat_count_v1',
 };
@@ -122,10 +122,15 @@ function loadInitialUser() {
 function loadInitialProducts() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.products);
-    if (!raw) return cloneInitialProducts();
+    const initial = cloneInitialProducts();
+    if (!raw) return initial;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.sku) {
-      return parsed;
+      // Selalu sinkronkan path gambar dari master catalog agar perubahan aset gambar langsung aktif
+      return parsed.map((p) => {
+        const found = initial.find((item) => item.sku === p.sku);
+        return found ? { ...p, image: found.image } : p;
+      });
     }
   } catch {
     // Gunakan default jika localStorage rusak
