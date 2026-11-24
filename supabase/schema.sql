@@ -193,3 +193,117 @@ drop policy if exists "Allow anon insert handoff_tickets" on public.handoff_tick
 create policy "Allow anon insert handoff_tickets" on public.handoff_tickets for insert with check (true);
 drop policy if exists "Allow anon read handoff_tickets" on public.handoff_tickets;
 create policy "Allow anon read handoff_tickets" on public.handoff_tickets for select using (true);
+
+-- ============================================================
+-- TAHAP A: PESANAN (CHECKOUT CHATBOT), TRACKING KURIR, & NOTIF AI
+-- ============================================================
+
+-- 6. Tabel Pesanan (Orders dari Chatbot / Web)
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  order_code text unique not null,
+  customer_username text not null default 'guest',
+  customer_name text not null,
+  customer_phone text not null default '',
+  shipping_address text not null,
+  payment_method text not null default 'COD',
+  items jsonb not null default '[]'::jsonb,
+  total_price integer not null default 0,
+  status text not null default 'diproses' check (status in ('diproses', 'dikemas', 'dikirim', 'selesai')),
+  courier text not null default '',
+  tracking_number text not null default '',
+  last_location text not null default 'Gudang Talaka Bogor',
+  ai_completion_note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 7. Tabel Riwayat Tracking Pengiriman
+create table if not exists public.order_tracking_logs (
+  id bigint generated always as identity primary key,
+  order_code text not null,
+  status text not null,
+  location text not null default '',
+  note text not null default '',
+  created_at timestamptz not null default now()
+);
+
+-- 8. Tabel Notifikasi AI untuk Pembeli (Web + siap sinkron Telegram/WA)
+create table if not exists public.notifications (
+  id bigint generated always as identity primary key,
+  recipient_username text not null,
+  order_code text not null default '',
+  title text not null,
+  message text not null,
+  channel text not null default 'web',
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- RLS Policies untuk Orders, Tracking Logs, & Notifications (MVP Demo)
+alter table public.orders enable row level security;
+alter table public.order_tracking_logs enable row level security;
+alter table public.notifications enable row level security;
+
+drop policy if exists "Allow anon read orders" on public.orders;
+create policy "Allow anon read orders" on public.orders for select using (true);
+drop policy if exists "Allow anon insert orders" on public.orders;
+create policy "Allow anon insert orders" on public.orders for insert with check (true);
+drop policy if exists "Allow anon update orders" on public.orders;
+create policy "Allow anon update orders" on public.orders for update using (true);
+
+drop policy if exists "Allow anon read tracking_logs" on public.order_tracking_logs;
+create policy "Allow anon read tracking_logs" on public.order_tracking_logs for select using (true);
+drop policy if exists "Allow anon insert tracking_logs" on public.order_tracking_logs;
+create policy "Allow anon insert tracking_logs" on public.order_tracking_logs for insert with check (true);
+
+drop policy if exists "Allow anon read notifications" on public.notifications;
+create policy "Allow anon read notifications" on public.notifications for select using (true);
+drop policy if exists "Allow anon insert notifications" on public.notifications;
+create policy "Allow anon insert notifications" on public.notifications for insert with check (true);
+drop policy if exists "Allow anon update notifications" on public.notifications;
+create policy "Allow anon update notifications" on public.notifications for update using (true);
+
+-- ============================================================
+-- TAHAP C & D: TREN SOSMED (APIFY) & LAPORAN ANALISIS AI 3 HARIAN
+-- ============================================================
+
+-- 9. Tabel Tren Sosmed (TikTok, Instagram, Threads, X)
+create table if not exists public.social_trends (
+  id bigint generated always as identity primary key,
+  platform text not null check (platform in ('tiktok', 'instagram', 'threads', 'x')),
+  topic text not null,
+  hashtag text not null default '',
+  sentiment text not null default 'positif',
+  engagement_score integer not null default 75,
+  sample_caption text not null default '',
+  insight text not null default '',
+  scraped_at timestamptz not null default now()
+);
+
+-- 10. Tabel Laporan Analisis AI Otomatis (Setiap 3 Hari Sekali & Manual)
+create table if not exists public.ai_reports (
+  id uuid primary key default gen_random_uuid(),
+  report_title text not null,
+  period_label text not null default '',
+  summary text not null,
+  trending_highlights jsonb not null default '[]'::jsonb,
+  store_insights jsonb not null default '[]'::jsonb,
+  target_audience jsonb not null default '{}'::jsonb,
+  promo_recommendations jsonb not null default '[]'::jsonb,
+  triggered_by text not null default 'manual' check (triggered_by in ('manual', 'cron_3d')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.social_trends enable row level security;
+alter table public.ai_reports enable row level security;
+
+drop policy if exists "Allow anon read social_trends" on public.social_trends;
+create policy "Allow anon read social_trends" on public.social_trends for select using (true);
+drop policy if exists "Allow anon insert social_trends" on public.social_trends;
+create policy "Allow anon insert social_trends" on public.social_trends for insert with check (true);
+
+drop policy if exists "Allow anon read ai_reports" on public.ai_reports;
+create policy "Allow anon read ai_reports" on public.ai_reports for select using (true);
+drop policy if exists "Allow anon insert ai_reports" on public.ai_reports;
+create policy "Allow anon insert ai_reports" on public.ai_reports for insert with check (true);

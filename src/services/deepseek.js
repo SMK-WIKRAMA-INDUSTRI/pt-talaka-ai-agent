@@ -4,7 +4,14 @@ import {
   MAX_HISTORY_MESSAGES,
 } from '../config/botPrompt';
 
-const NETRA_API_URL = 'https://api.netra.sh/v1/chat/completions';
+const isLocalHost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1');
+
+const NETRA_API_URL = isLocalHost
+  ? '/api/netra/v1/chat/completions'
+  : 'https://api.netra.sh/v1/chat/completions';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
 export function getDeepSeekApiKey() {

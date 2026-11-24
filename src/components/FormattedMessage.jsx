@@ -45,7 +45,10 @@ function parseInlineFormatting(text, keyPrefix) {
 }
 
 export default function FormattedMessage({ content }) {
-  const lines = String(content || '').split('\n');
+  const cleanedContent = String(content || '')
+    .replace(/\[TALAKA_CHECKOUT\][\s\S]*?\[\/TALAKA_CHECKOUT\]/g, '')
+    .trim();
+  const lines = cleanedContent.split('\n');
   const blocks = [];
   let listItems = [];
   let listType = null;

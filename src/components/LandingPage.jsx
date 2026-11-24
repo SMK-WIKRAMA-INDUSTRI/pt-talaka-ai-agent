@@ -215,6 +215,9 @@ export default function LandingPage({
   onScrollToChat,
   onSelectSamplePrompt,
   onOpenPresentation,
+  onOpenAdmin,
+  onOpenMyOrders,
+  unreadNotifCount = 0,
   currentUser,
   onOpenLogin,
   onLogout,
@@ -416,6 +419,32 @@ export default function LandingPage({
 
           {/* CTA Actions */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {onOpenMyOrders && (
+              <button
+                type="button"
+                onClick={onOpenMyOrders}
+                className="relative hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition-all cursor-pointer whitespace-nowrap"
+                title="Lacak progres paket & notifikasi AI"
+              >
+                <Package className="h-3.5 w-3.5 text-[#9E7B66]" />
+                <span>Pesanan</span>
+                {unreadNotifCount > 0 && (
+                  <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                )}
+              </button>
+            )}
+
+            {currentUser?.role === 'admin' && onOpenAdmin && (
+              <button
+                type="button"
+                onClick={onOpenAdmin}
+                className="inline-flex items-center gap-1 rounded-full bg-[#9E7B66] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#8a6854] transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                title="Buka Dashboard Admin"
+              >
+                <span>Dashboard</span>
+              </button>
+            )}
+
             {onOpenPresentation && (
               <button
                 type="button"

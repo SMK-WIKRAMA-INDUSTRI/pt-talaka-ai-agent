@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import AdminDashboardPage from './components/AdminDashboardPage';
+import ChatCheckoutCard from './components/ChatCheckoutCard';
+import CustomerOrdersDrawer from './components/CustomerOrdersDrawer';
 import FormattedMessage from './components/FormattedMessage';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import PresentationPage from './components/PresentationPage';
 import PromoVideoPage from './components/PromoVideoPage';
 import TalaMascot from './components/TalaMascot';
+import VoiceCallModal from './components/VoiceCallModal';
 import talakaLogo from './assets/talaka-logo.svg';
 import {
   DEFAULT_BOT_NAME,
   DEFAULT_HONESTY_LEVEL,
   DEFAULT_MODEL,
+  parseCheckoutDraftFromText,
 } from './config/botPrompt';
 import {
   buildTalakaKnowledgeFromProducts,
@@ -19,18 +24,28 @@ import {
 import { askDeepSeek, hasDeepSeekApiKey } from './services/deepseek';
 import {
   hasDeepgramApiKey,
-  synthesizeSpeechWithDeepgram,
+  speakIndonesianAuto,
+  stopBrowserIndonesianSpeech,
   transcribeAudioWithDeepgram,
 } from './services/deepgram';
-import { runVirtualTryOn } from './services/gemini';
+import {
+  hasGeminiApiKey,
+  runVirtualTryOn,
+  searchCatalogByPhoto,
+} from './services/gemini';
 import {
   exportLookbookPdf,
   extractTextFromPdfFile,
 } from './services/pdfService';
 import {
   createHandoffTicketInDb,
+  createOrderInDb,
   fetchLiveProducts,
+  fetchNotificationsFromDb,
+  fetchOrdersFromDb,
   isSupabaseConfigured,
+  lookupOrderByCodeOrTracking,
+  markNotificationsReadInDb,
   resetProductsInDb,
   saveChatMessageToDb,
   updateProductSizesInDb,
@@ -40,6 +55,7 @@ import {
   Send,
   Trash2,
   Phone,
+  PhoneCall,
   Copy,
   Check,
   Image as ImageIcon,
@@ -58,12 +74,38 @@ import {
   Square,
   Volume2,
   VolumeX,
+  Lock,
+  Package,
+  LayoutDashboard,
+  Truck,
+  Search,
 } from 'lucide-react';
+
+const GUEST_CHAT_LIMIT = 3;
+
+const PRICE_FILTER_OPTIONS = [
+  { value: null, label: 'Semua' },
+  { value: 250000, label: '≤ 250rb' },
+  { value: 300000, label: '≤ 300rb' },
+  { value: 400000, label: '≤ 400rb' },
+  { value: 550000, label: '≤ 550rb' },
+];
 
 const STORAGE_KEYS = {
   products: 'talaka_live_products_v2',
   authUser: 'talaka_auth_user_v1',
+  guestChatCount: 'talaka_guest_chat_count_v1',
 };
+
+function loadGuestChatCount() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.guestChatCount);
+    const parsed = Number.parseInt(raw || '0', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
 
 function loadInitialUser() {
   try {
@@ -128,10 +170,15 @@ export default function App() {
 
   const [products, setProducts] = useState(() => loadInitialProducts());
   const [currentUser, setCurrentUser] = useState(() => loadInitialUser());
+  const [guestChatCount, setGuestChatCount] = useState(() =>
+    loadGuestChatCount()
+  );
+  const [showLoginLimitModal, setShowLoginLimitModal] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
   const [sessionId, setSessionId] = useState(() => `sess-${Date.now()}`);
   const contextText = buildTalakaKnowledgeFromProducts(products, showExactStock);
   const [activePageContext, setActivePageContext] = useState('beranda');
+  const [maxPriceFilter, setMaxPriceFilter] = useState(null);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -152,6 +199,11 @@ export default function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speakingMessageIdx, setSpeakingMessageIdx] = useState(null);
   const [isSynthesizingSpeech, setIsSynthesizingSpeech] = useState(false);
+  const [showVoiceCallModal, setShowVoiceCallModal] = useState(false);
+  const [showOrdersDrawer, setShowOrdersDrawer] = useState(false);
+  const [userOrders, setUserOrders] = useState([]);
+  const [userNotifications, setUserNotifications] = useState([]);
+  const [isLoadingUserOrders, setIsLoadingUserOrders] = useState(false);
   const [showTryOnModal, setShowTryOnModal] = useState(false);
   const [tryOnBodyImage, setTryOnBodyImage] = useState(null);
   const [tryOnOutfitImage, setTryOnOutfitImage] = useState(null);
@@ -169,7 +221,12 @@ export default function App() {
   const activeAudioRef = useRef(null);
   const activeAudioUrlRef = useRef(null);
   const speechSessionRef = useRef(0);
+  const messagesRef = useRef(messages);
   const hasApiKey = hasDeepSeekApiKey();
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const hasDeepgramKey = hasDeepgramApiKey();
 
   const scrollToChat = () => {
@@ -208,6 +265,10 @@ export default function App() {
   }, [products]);
 
   useEffect(() => {
+    writeStorage(STORAGE_KEYS.guestChatCount, String(guestChatCount));
+  }, [guestChatCount]);
+
+  useEffect(() => {
     try {
       if (currentUser) {
         localStorage.setItem(STORAGE_KEYS.authUser, JSON.stringify(currentUser));
@@ -221,6 +282,104 @@ export default function App() {
 
   function handleLogout() {
     setCurrentUser(null);
+  }
+
+  const loadCustomerOrdersAndNotifs = useCallback(async () => {
+    const activeUser = currentUser?.username || 'guest';
+    setIsLoadingUserOrders(true);
+    try {
+      const [ordList, notifList] = await Promise.all([
+        fetchOrdersFromDb({
+          username: activeUser,
+          isAdmin: currentUser?.role === 'admin',
+        }),
+        fetchNotificationsFromDb(activeUser),
+      ]);
+      setUserOrders(ordList);
+      setUserNotifications(notifList);
+    } finally {
+      setIsLoadingUserOrders(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    let active = true;
+    const activeUser = currentUser?.username || 'guest';
+    Promise.all([
+      fetchOrdersFromDb({
+        username: activeUser,
+        isAdmin: currentUser?.role === 'admin',
+      }),
+      fetchNotificationsFromDb(activeUser),
+    ]).then(([ordList, notifList]) => {
+      if (!active) return;
+      setUserOrders(ordList);
+      setUserNotifications(notifList);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  async function handleOpenOrdersDrawer() {
+    setShowOrdersDrawer(true);
+    await loadCustomerOrdersAndNotifs();
+    const activeUser = currentUser?.username || 'guest';
+    await markNotificationsReadInDb(activeUser);
+    setUserNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  }
+
+  async function handleConfirmChatCheckout(payload) {
+    const activeUsername = currentUser?.username || 'guest';
+    const { order } = await createOrderInDb({
+      customerUsername: activeUsername,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      shippingAddress: payload.shippingAddress,
+      paymentMethod: payload.paymentMethod,
+      items: [
+        {
+          sku: payload.sku,
+          name: payload.name,
+          image: payload.image || '',
+          color: payload.color,
+          size: payload.size,
+          qty: payload.qty,
+          price: payload.price,
+        },
+      ],
+      totalPrice: payload.totalPrice,
+    });
+
+    handleUpdateProductStock(
+      payload.sku,
+      payload.color,
+      payload.size,
+      -payload.qty
+    );
+    await loadCustomerOrdersAndNotifs();
+    return order;
+  }
+
+  function handleQuickCheckoutFromCard(product) {
+    const defaultColor = product.colors?.[0] || '';
+    const sizeMap = product.sizes?.[defaultColor] || {};
+    const readySize =
+      Object.keys(sizeMap).find((sz) => (sizeMap[sz] || 0) > 0) ||
+      Object.keys(sizeMap)[0] ||
+      '';
+    const draft = {
+      sku: product.sku,
+      color: defaultColor,
+      size: readySize,
+      qty: 1,
+      customerName: currentUser?.fullName || '',
+      customerPhone: '',
+      shippingAddress: '',
+      paymentMethod: 'COD',
+    };
+    const msgText = `Siap Kak! Aku sudah siapkan kartu checkout untuk **${product.name} (${product.sku})**. Silakan cek warna, ukuran, dan lengkapi alamat pengiriman di bawah lalu klik **Konfirmasi & Buat Pesanan** ya! ✨\n[TALAKA_CHECKOUT]${JSON.stringify(draft)}[/TALAKA_CHECKOUT]`;
+    setMessages((prev) => [...prev, { role: 'assistant', content: msgText }]);
   }
 
   // Sinkronisasi awal produk & stok live dari Supabase (jika .env sudah diisi)
@@ -277,22 +436,23 @@ export default function App() {
   function stopAiSpeech() {
     speechSessionRef.current += 1;
     if (activeAudioRef.current) {
-      activeAudioRef.current.pause();
+      if (typeof activeAudioRef.current.cancel === 'function') {
+        activeAudioRef.current.cancel();
+      } else if (typeof activeAudioRef.current.pause === 'function') {
+        activeAudioRef.current.pause();
+      }
       activeAudioRef.current = null;
     }
     if (activeAudioUrlRef.current) {
       URL.revokeObjectURL(activeAudioUrlRef.current);
       activeAudioUrlRef.current = null;
     }
+    stopBrowserIndonesianSpeech();
     setSpeakingMessageIdx(null);
     setIsSynthesizingSpeech(false);
   }
 
   async function playAiSpeech(text, messageIdx) {
-    if (!hasDeepgramKey) {
-      setError('Token Deepgram belum diisi di file .env.');
-      return;
-    }
     if (speakingMessageIdx === messageIdx) {
       stopAiSpeech();
       return;
@@ -304,35 +464,36 @@ export default function App() {
     setIsSynthesizingSpeech(true);
 
     try {
-      const audioUrl = await synthesizeSpeechWithDeepgram(text);
+      const controller = await speakIndonesianAuto(text, {
+        onReady: () => {
+          if (speechSessionRef.current === sessionToken) {
+            setIsSynthesizingSpeech(false);
+          }
+        },
+        onEnd: () => {
+          if (speechSessionRef.current === sessionToken) {
+            stopAiSpeech();
+          }
+        },
+        onError: () => {
+          if (speechSessionRef.current === sessionToken) {
+            stopAiSpeech();
+          }
+        },
+      });
+
       if (speechSessionRef.current !== sessionToken) {
-        URL.revokeObjectURL(audioUrl);
+        controller.cancel();
         return;
       }
 
-      activeAudioUrlRef.current = audioUrl;
-      const audio = new Audio(audioUrl);
-      activeAudioRef.current = audio;
-
-      audio.onended = () => {
-        if (speechSessionRef.current === sessionToken) {
-          stopAiSpeech();
-        }
-      };
-      audio.onerror = () => {
-        if (speechSessionRef.current === sessionToken) {
-          stopAiSpeech();
-        }
-      };
-
-      setIsSynthesizingSpeech(false);
-      await audio.play();
+      activeAudioRef.current = controller;
     } catch (err) {
       if (speechSessionRef.current === sessionToken) {
         stopAiSpeech();
       }
       if (err?.name !== 'NotAllowedError') {
-        setError(err.message || 'Gagal memutar suara balasan Deepgram.');
+        setError(err.message || 'Gagal memutar suara balasan.');
       }
     }
   }
@@ -340,6 +501,11 @@ export default function App() {
   async function handleToggleRecording() {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    if (!currentUser && guestChatCount >= GUEST_CHAT_LIMIT) {
+      setShowLoginLimitModal(true);
       return;
     }
 
@@ -521,9 +687,17 @@ export default function App() {
 
   async function handleRunVirtualTryOn(e) {
     e.preventDefault();
+    if (!currentUser && guestChatCount >= GUEST_CHAT_LIMIT) {
+      setShowTryOnModal(false);
+      setShowLoginLimitModal(true);
+      return;
+    }
     if (!tryOnBodyImage || !tryOnOutfitImage) {
       setError('Lengkapi foto tubuh dan foto baju terlebih dahulu.');
       return;
+    }
+    if (!currentUser) {
+      setGuestChatCount((prev) => prev + 1);
     }
     const bodyUrl = tryOnBodyImage.dataUrl;
     const outfitUrl = tryOnOutfitImage.dataUrl;
@@ -576,33 +750,110 @@ export default function App() {
     chatInputRef.current?.focus();
   }
 
+  async function resolveLiveTrackingContext(rawText) {
+    const text = String(rawText || '');
+    const hasTrackingIntent =
+      /\b(resi|paket|lacak|sampai mana|sampe mana|pengiriman|kurir|pesanan|order|dikirim|status|tlk-)\b/i.test(
+        text
+      );
+    const codeMatch = /\b(TLK-\d{3,6})\b/i.exec(text);
+    const resiMatch =
+      /\b((?:JNE|JNT|JP|SICEPAT|ANTERAJA|SPX|ID|POS|NINJA)[A-Z0-9-]{4,})\b/i.exec(
+        text
+      ) || /\b([A-Z]{2,5}\d{5,14})\b/i.exec(text);
+
+    const lookupToken = codeMatch?.[1] || resiMatch?.[1] || '';
+
+    if (lookupToken) {
+      const found = await lookupOrderByCodeOrTracking(lookupToken);
+      if (found) {
+        const latestLog = found.trackingLogs?.[0];
+        const summary = [
+          `[DATA TRACKING & PESANAN LIVE (COCOK DENGAN KODE/RESI ${lookupToken.toUpperCase()})]`,
+          `- Kode Pesanan: ${found.orderCode}`,
+          `- Penerima: ${found.customerName} (${found.shippingAddress})`,
+          `- Status Saat Ini: ${found.status.toUpperCase()}`,
+          `- Kurir: ${found.courier || 'Belum ditugaskan'} | Nomor Resi: ${found.trackingNumber || 'Belum diterbitkan (masih diproses gudang)'}`,
+          `- Lokasi Terakhir: ${found.lastLocation || 'Gudang Talaka Bogor'}`,
+          latestLog ? `- Update Terakhir: ${latestLog.note}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        return { contextString: summary, matchedOrder: found };
+      }
+      return {
+        contextString: `[DATA TRACKING & PESANAN LIVE: Kode/Resi "${lookupToken.toUpperCase()}" TIDAK DITEMUKAN di sistem Talaka. Minta pelanggan periksa kembali nomor resi atau kode pesanannya dengan sopan.]`,
+        matchedOrder: null,
+      };
+    }
+
+    if (hasTrackingIntent && userOrders.length > 0) {
+      const latest = userOrders[0];
+      const latestLog = latest.trackingLogs?.[0];
+      const summary = [
+        `[DATA TRACKING & PESANAN LIVE MILIK AKUN PELANGGAN (${userOrders.length} pesanan ditemukan, terbaru: ${latest.orderCode})]`,
+        `- Kode Pesanan: ${latest.orderCode}`,
+        `- Status Saat Ini: ${latest.status.toUpperCase()}`,
+        `- Kurir: ${latest.courier || 'Belum ditugaskan'} | Nomor Resi: ${latest.trackingNumber || 'Belum diterbitkan (masih diproses gudang)'}`,
+        `- Lokasi Terakhir: ${latest.lastLocation || 'Gudang Talaka Bogor'}`,
+        latestLog ? `- Update Terakhir: ${latestLog.note}` : '',
+        `(Jika pelanggan menanyakan pesanan lain, minta konfirmasi nomor resi atau kode pesanannya.)`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+      return { contextString: summary, matchedOrder: latest };
+    }
+
+    return { contextString: '', matchedOrder: null };
+  }
+
   async function sendQuestion(questionText, overridePageContext, options = {}) {
     const rawText = (questionText ?? input).trim();
     const currentImage = questionText === undefined ? attachedImage : null;
     const currentPdf = questionText === undefined ? attachedPdf : null;
     if ((!rawText && !currentImage && !currentPdf) || isSending) return;
 
+    if (!currentUser && guestChatCount >= GUEST_CHAT_LIMIT) {
+      setShowLoginLimitModal(true);
+      return;
+    }
+
     if (!hasApiKey) {
       setError('API key belum diisi di file .env.');
       return;
+    }
+
+    if (!currentUser) {
+      setGuestChatCount((prev) => prev + 1);
     }
 
     const displayContent =
       rawText ||
       (currentPdf
         ? `Tolong analisis file PDF "${currentPdf.fileName}" ini (acara / jadwal / setlist) dan kasih rekomendasi outfit Talaka per hari atau sesinya ya!`
-        : 'Gimana pendapat kamu soal foto outfit ini? Cocok nggak?');
+        : 'Cari baju atau sepatu Talaka yang paling mirip dengan foto ini dong Kak!');
 
     const extraParts = [];
+    if (maxPriceFilter) {
+      extraParts.push(
+        `[FILTER HARGA AKTIF: Maksimal Rp${maxPriceFilter.toLocaleString('id-ID')}. Wajib prioritaskan/rekomendasikan produk Talaka dengan harga <= Rp${maxPriceFilter.toLocaleString('id-ID')}.]`
+      );
+    }
     if (currentImage) {
       extraParts.push(
-        `[Pelanggan melampirkan foto outfit: "${currentImage.name}". Berikan respon sesuai prinsip kejujuran suportif PRD GYA-13.]`
+        `[Pelanggan mengunggah foto pakaian/outfit ("${currentImage.name}") untuk Search Baju by Foto.]`
       );
     }
     if (currentPdf) {
       extraParts.push(
         `[DOKUMEN PDF TERLAMPIR: "${currentPdf.fileName}" (${currentPdf.pageCount} halaman)]\n${currentPdf.text}\n[INSTRUKSI ANALISIS PDF: Baca acara, dresscode, jadwal per hari (Hari 1, Hari 2, dst.), atau setlist dari dokumen di atas. Susun rekomendasi outfit lengkap per hari/acara memakai produk nyata dari katalog Talaka beserta SKU-nya agar foto produk otomatis tampil di kartu & Lookbook PDF.]`
       );
+    }
+
+    const { contextString: trackingContext, matchedOrder } =
+      await resolveLiveTrackingContext(displayContent);
+    if (trackingContext) {
+      extraParts.push(trackingContext);
     }
 
     const apiContent =
@@ -647,21 +898,41 @@ export default function App() {
     });
 
     try {
-      const apiHistory = nextHistory.map((m) => ({
-        role: m.role,
-        content: m.apiContent || m.content,
-      }));
-      const reply = await askDeepSeek({
-        model,
-        botName,
-        honestyLevel,
-        showExactStock,
-        activePageContext: effectivePageContext,
-        contextText,
-        history: apiHistory,
-      });
+      let reply = '';
+
+      // Jika ada 1 foto baju diupload dan Gemini aktif -> gunakan Search Baju by Foto (Gemini Vision)
+      if (currentImage?.dataUrl && hasGeminiApiKey()) {
+        reply = await searchCatalogByPhoto({
+          imageDataUrl: currentImage.dataUrl,
+          products,
+          maxBudget: maxPriceFilter,
+          userNote: rawText,
+        });
+      } else {
+        const apiHistory = nextHistory.map((m) => ({
+          role: m.role,
+          content: m.apiContent || m.content,
+        }));
+        reply = await askDeepSeek({
+          model,
+          botName,
+          honestyLevel,
+          showExactStock,
+          activePageContext: effectivePageContext,
+          contextText,
+          history: apiHistory,
+        });
+      }
+
       const assistantIdx = nextHistory.length;
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: reply,
+          trackingOrder: matchedOrder || null,
+        },
+      ]);
       saveChatMessageToDb({
         sessionId,
         username: activeUsername,
@@ -678,6 +949,79 @@ export default function App() {
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleVoiceCallTurn(transcriptText) {
+    const cleanText = (transcriptText || '').trim();
+    if (!cleanText) return '';
+
+    if (!currentUser && guestChatCount >= GUEST_CHAT_LIMIT) {
+      setShowVoiceCallModal(false);
+      setShowLoginLimitModal(true);
+      return 'Batas 3 kali percobaan tamu sudah tercapai ya Kak. Silakan login dulu supaya bisa lanjut mengobrol lebih luas dengan Kak Tala.';
+    }
+    if (!currentUser) {
+      setGuestChatCount((prev) => prev + 1);
+    }
+
+    const { contextString: trackingContext, matchedOrder } =
+      await resolveLiveTrackingContext(cleanText);
+    const budgetContext = maxPriceFilter
+      ? `\n[FILTER HARGA AKTIF: Maksimal Rp${maxPriceFilter.toLocaleString('id-ID')}.]`
+      : '';
+
+    const userMessage = {
+      role: 'user',
+      content: cleanText,
+      apiContent: `${cleanText}${budgetContext}${trackingContext ? `\n\n${trackingContext}` : ''}\n\n[KONTEKS PANGGILAN SUARA: Jawab ringkas, natural, imersif, dan ramah layaknya percakapan telepon langsung maksimal 2-4 kalimat, tanpa format tabel/heading.]`,
+      fromVoice: true,
+    };
+
+    const baseHistory = messagesRef.current;
+    const nextHistory = [...baseHistory, userMessage];
+    messagesRef.current = nextHistory;
+    setMessages(nextHistory);
+
+    const activeUsername = currentUser?.username || 'guest';
+    saveChatMessageToDb({
+      sessionId,
+      username: activeUsername,
+      role: 'user',
+      content: cleanText,
+      pageContext: activePageContext,
+    });
+
+    const apiHistory = nextHistory.map((m) => ({
+      role: m.role,
+      content: m.apiContent || m.content,
+    }));
+
+    const reply = await askDeepSeek({
+      model,
+      botName,
+      honestyLevel,
+      showExactStock,
+      activePageContext,
+      contextText,
+      history: apiHistory,
+    });
+
+    const withReply = [
+      ...messagesRef.current,
+      { role: 'assistant', content: reply, trackingOrder: matchedOrder || null },
+    ];
+    messagesRef.current = withReply;
+    setMessages(withReply);
+
+    saveChatMessageToDb({
+      sessionId,
+      username: activeUsername,
+      role: 'assistant',
+      content: reply,
+      pageContext: activePageContext,
+    });
+
+    return reply;
   }
 
   function handleSubmit(e) {
@@ -726,8 +1070,22 @@ export default function App() {
   }
 
   const displayBotName = botName.trim() || DEFAULT_BOT_NAME;
+  const unreadNotifCount = userNotifications.filter((n) => !n.isRead).length;
 
   const normalizedPath = pathname.replace(/\/+$/, '');
+  if (normalizedPath === '/admin') {
+    return (
+      <AdminDashboardPage
+        currentUser={currentUser}
+        products={products}
+        onUpdateStock={handleUpdateProductStock}
+        onResetProducts={handleResetProducts}
+        onGoHome={() => navigateTo('/')}
+        onOpenLogin={() => navigateTo('/login')}
+        onOrdersChanged={loadCustomerOrdersAndNotifs}
+      />
+    );
+  }
   if (normalizedPath === '/presentasi') {
     return <PresentationPage onGoHome={() => navigateTo('/')} />;
   }
@@ -758,6 +1116,9 @@ export default function App() {
         onScrollToChat={scrollToChat}
         onSelectSamplePrompt={handleSelectPromptFromLanding}
         onOpenPresentation={() => navigateTo('/presentasi')}
+        onOpenAdmin={() => navigateTo('/admin')}
+        onOpenMyOrders={handleOpenOrdersDrawer}
+        unreadNotifCount={unreadNotifCount}
         currentUser={currentUser}
         onOpenLogin={() => navigateTo('/login')}
         onLogout={handleLogout}
@@ -828,6 +1189,32 @@ export default function App() {
                 </select>
               </div>
 
+              {/* Lacak Pesanan & Notif AI */}
+              <button
+                type="button"
+                onClick={handleOpenOrdersDrawer}
+                className="relative rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 hover:border-slate-900 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                title="Pantau progres paket & notifikasi AI"
+              >
+                <Package className="w-3.5 h-3.5 text-[#9E7B66]" />
+                <span>Pesanan ({userOrders.length})</span>
+                {unreadNotifCount > 0 && (
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                )}
+              </button>
+
+              {currentUser?.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => navigateTo('/admin')}
+                  className="rounded-2xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-black transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Buka Dashboard Admin"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5 text-[#D6B7A5]" />
+                  <span>Admin</span>
+                </button>
+              )}
+
               {/* Scroll to Top Button */}
               <button
                 type="button"
@@ -872,6 +1259,25 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
+                {hasDeepgramKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!currentUser && guestChatCount >= GUEST_CHAT_LIMIT) {
+                        setShowLoginLimitModal(true);
+                        return;
+                      }
+                      stopAiSpeech();
+                      setShowVoiceCallModal(true);
+                    }}
+                    disabled={isSending}
+                    className="rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-2xs"
+                    title="Telepon langsung dengan Kak Tala (Deepgram Voice Call)"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>Telepon</span>
+                  </button>
+                )}
                 {hasDeepgramKey && (
                   <button
                     type="button"
@@ -945,6 +1351,51 @@ export default function App() {
               </div>
             </div>
 
+            {/* Banner Kuota Percobaan Tamu (Jika Belum Login) */}
+            {!currentUser && (
+              <div
+                className={`border-b px-5 py-2 text-xs flex flex-wrap items-center justify-between gap-2 ${
+                  guestChatCount >= GUEST_CHAT_LIMIT
+                    ? 'bg-amber-50 border-amber-200 text-amber-900'
+                    : 'bg-slate-50/90 border-slate-200/80 text-slate-600'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Lock
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      guestChatCount >= GUEST_CHAT_LIMIT
+                        ? 'text-amber-600'
+                        : 'text-[#9E7B66]'
+                    }`}
+                  />
+                  <span>
+                    {guestChatCount >= GUEST_CHAT_LIMIT ? (
+                      <>
+                        <strong>Batas {GUEST_CHAT_LIMIT}x percobaan tamu tercapai.</strong>{' '}
+                        Login untuk menggunakan Kak Tala lebih luas tanpa batas.
+                      </>
+                    ) : (
+                      <>
+                        Mode Tamu · Sisa{' '}
+                        <strong className="text-slate-900">
+                          {Math.max(0, GUEST_CHAT_LIMIT - guestChatCount)} dari{' '}
+                          {GUEST_CHAT_LIMIT}
+                        </strong>{' '}
+                        percobaan chat gratis.
+                      </>
+                    )}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('/login')}
+                  className="rounded-full bg-slate-900 text-white px-3 py-1 text-[11px] font-bold hover:bg-black transition cursor-pointer"
+                >
+                  Masuk / Daftar
+                </button>
+              </div>
+            )}
+
             {/* Banner Konteks Halaman Produk Aktif */}
             {activePageContext !== 'beranda' && (
               <div className="bg-slate-50 border-b border-slate-200/80 px-5 py-2.5 text-xs text-slate-800 flex items-center justify-between">
@@ -968,6 +1419,83 @@ export default function App() {
                 </button>
               </div>
             )}
+
+            {/* Strip Filter Harga & Quick Tools CS (Ongkir, Cek Resi, Cari by Foto) */}
+            <div className="border-b border-slate-200/80 bg-white px-4 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                <span className="font-mono font-bold text-slate-400 shrink-0 mr-0.5">
+                  BUDGET:
+                </span>
+                {PRICE_FILTER_OPTIONS.map((opt) => {
+                  const isActive = maxPriceFilter === opt.value;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setMaxPriceFilter(opt.value)}
+                      className={`shrink-0 rounded-full px-2.5 py-1 font-semibold transition cursor-pointer border ${
+                        isActive
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+                {maxPriceFilter && (
+                  <span className="shrink-0 font-mono text-[10px] text-[#9E7B66] font-bold ml-1">
+                    (
+                    {
+                      products.filter((p) => Number(p.price) <= maxPriceFilter)
+                        .length
+                    }{' '}
+                    produk)
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSending}
+                  className="rounded-full border border-[#9E7B66]/40 bg-[#9E7B66]/10 px-2.5 py-1 font-bold text-[#9E7B66] hover:bg-[#9E7B66] hover:text-white transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="Upload foto baju/sepatu untuk cari produk paling mirip di Talaka"
+                >
+                  <Search className="w-3 h-3" />
+                  <span>Cari by Foto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleInsertTemplate(
+                      'Kak, tolong hitung ongkir & estimasi tiba dari Bogor ke kota '
+                    )
+                  }
+                  disabled={isSending}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="Hitung ongkir & estimasi tiba"
+                >
+                  <Truck className="w-3 h-3 text-emerald-600" />
+                  <span>Ongkir</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleInsertTemplate(
+                      'Kak, paketku udah sampai mana ya? Nomor resi / kode order: '
+                    )
+                  }
+                  disabled={isSending}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="Cek status paket lewat nomor resi atau kode pesanan"
+                >
+                  <Package className="w-3 h-3 text-blue-600" />
+                  <span>Cek Resi</span>
+                </button>
+              </div>
+            </div>
 
             {/* Area Pesan Chat */}
             <div
@@ -1100,9 +1628,22 @@ export default function App() {
               {/* Message List */}
               {messages.map((msg, idx) => {
                 const isUser = msg.role === 'user';
-                const mentionedProducts = !isUser
-                  ? findMentionedProducts(msg.content, products)
-                  : [];
+                const checkoutDraft = !isUser
+                  ? parseCheckoutDraftFromText(msg.content)
+                  : null;
+                const rawMentioned =
+                  !isUser && !checkoutDraft
+                    ? findMentionedProducts(msg.content, products)
+                    : [];
+                const mentionedProducts = maxPriceFilter
+                  ? rawMentioned.filter(
+                      (p) => Number(p.price) <= maxPriceFilter
+                    ).length > 0
+                    ? rawMentioned.filter(
+                        (p) => Number(p.price) <= maxPriceFilter
+                      )
+                    : rawMentioned
+                  : rawMentioned;
 
                 return (
                   <div key={idx} className="space-y-3">
@@ -1314,6 +1855,15 @@ export default function App() {
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
+                                  onClick={() =>
+                                    handleQuickCheckoutFromCard(product)
+                                  }
+                                  className="rounded-xl border border-[#9E7B66]/40 bg-[#9E7B66]/10 px-2.5 py-1 text-[10px] font-bold text-[#9E7B66] hover:bg-[#9E7B66] hover:text-white transition cursor-pointer"
+                                >
+                                  Checkout
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => {
                                     const nextCtx = `${product.name} (${product.sku})`;
                                     setActivePageContext(nextCtx);
@@ -1332,6 +1882,85 @@ export default function App() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Interactive Checkout Card inside Chat Stream */}
+                    {checkoutDraft && (
+                      <ChatCheckoutCard
+                        draft={checkoutDraft}
+                        products={products}
+                        currentUser={currentUser}
+                        onConfirmOrder={handleConfirmChatCheckout}
+                        onOpenMyOrders={handleOpenOrdersDrawer}
+                      />
+                    )}
+
+                    {/* Live Tracking Status Card inside Chat Stream */}
+                    {!isUser && msg.trackingOrder && (
+                      <div className="ml-11 max-w-md rounded-2xl border border-blue-200 bg-white p-3.5 shadow-xs space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Truck className="w-4 h-4 text-blue-600" />
+                            <span className="text-xs font-mono font-bold text-slate-900">
+                              {msg.trackingOrder.orderCode}
+                            </span>
+                          </div>
+                          <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase text-blue-700">
+                            {msg.trackingOrder.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {['diproses', 'dikemas', 'dikirim', 'selesai'].map(
+                            (step, sIdx) => {
+                              const currentIdx = [
+                                'diproses',
+                                'dikemas',
+                                'dikirim',
+                                'selesai',
+                              ].indexOf(msg.trackingOrder.status);
+                              const active = sIdx <= currentIdx;
+                              return (
+                                <div key={step} className="space-y-1">
+                                  <div
+                                    className={`h-1.5 rounded-full ${
+                                      active ? 'bg-blue-600' : 'bg-slate-200'
+                                    }`}
+                                  />
+                                  <div
+                                    className={`text-[9px] font-mono uppercase truncate ${
+                                      active
+                                        ? 'text-blue-700 font-bold'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-600 space-y-0.5">
+                          <div>
+                            <strong className="text-slate-800">Kurir / Resi:</strong>{' '}
+                            {msg.trackingOrder.courier || 'Menunggu kurir'} ·{' '}
+                            <span className="font-mono">
+                              {msg.trackingOrder.trackingNumber || '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <strong className="text-slate-800">Posisi Terakhir:</strong>{' '}
+                            {msg.trackingOrder.lastLocation || 'Gudang Talaka Bogor'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleOpenOrdersDrawer}
+                          className="w-full rounded-xl bg-slate-900 text-white py-1.5 text-[11px] font-bold hover:bg-black transition cursor-pointer"
+                        >
+                          Lihat Timeline Lengkap di Pesanan ↗
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1449,7 +2078,7 @@ export default function App() {
                         </div>
                       </button>
 
-                      {/* 3. Lampirkan 1 Foto Outfit */}
+                      {/* 3. Search Baju by Foto (AI Visual Search) */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1459,7 +2088,12 @@ export default function App() {
                         className="w-full flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
                       >
                         <ImageIcon className="h-4 w-4 text-slate-600 shrink-0" />
-                        <span>Lampirkan 1 Foto Outfit</span>
+                        <div>
+                          <div className="font-bold">Cari Baju by Foto</div>
+                          <div className="text-[10px] text-slate-500">
+                            Upload foto → cari produk mirip di Talaka
+                          </div>
+                        </div>
                       </button>
 
                       {/* 3. Isi Ukuran TB & BB */}
@@ -1630,9 +2264,19 @@ export default function App() {
                 <div className="relative flex-1 flex items-end rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-slate-900 transition">
                   <button
                     type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSending}
+                    className="ml-2 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
+                    title="Search Baju by Foto (upload foto baju/sepatu untuk cari yang mirip di Talaka)"
+                    aria-label="Cari baju dengan foto"
+                  >
+                    <ImageIcon className="w-4 h-4 text-slate-700" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => pdfInputRef.current?.click()}
                     disabled={isReadingPdf || isSending}
-                    className="ml-2 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
+                    className="ml-1 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
                     title="Upload PDF undangan acara, kerja, atau setlist outfit"
                     aria-label="Upload PDF"
                   >
@@ -1854,6 +2498,70 @@ export default function App() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {/* Modal Telepon Suara Real-Time 2 Arah (Deepgram Nova-2 + Aura-2) */}
+      <VoiceCallModal
+        isOpen={showVoiceCallModal}
+        onClose={() => setShowVoiceCallModal(false)}
+        botName={displayBotName}
+        onCallTurn={handleVoiceCallTurn}
+      />
+
+      {/* Drawer Samping: Lacak Pesanan & Notifikasi AI untuk Pembeli */}
+      <CustomerOrdersDrawer
+        isOpen={showOrdersDrawer}
+        onClose={() => setShowOrdersDrawer(false)}
+        orders={userOrders}
+        notifications={userNotifications}
+        isLoading={isLoadingUserOrders}
+        onRefresh={loadCustomerOrdersAndNotifs}
+        currentUser={currentUser}
+        onOpenAdmin={() => navigateTo('/admin')}
+      />
+
+      {/* Alert Modal: Wajib Login Setelah 3x Percobaan Chat Tamu */}
+      {showLoginLimitModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 text-center space-y-4">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+              <Lock className="w-7 h-7 text-amber-600" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="inline-block rounded-full bg-amber-100 px-3 py-0.5 text-[10px] font-mono font-bold text-amber-800">
+                BATAS PERCOBAAN TAMU (3 / 3)
+              </span>
+              <h3 className="text-lg font-extrabold text-slate-950">
+                Yuk Login untuk Akses Lebih Luas!
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Kamu sudah memakai <strong>3 kali percobaan gratis</strong> bersama{' '}
+                {displayBotName}. Silakan <strong>Masuk atau Daftar Akun</strong>{' '}
+                terlebih dahulu jika ingin terus menggunakan konsultasi AI,
+                Virtual Try-On, Lookbook PDF, dan fitur Telepon secara lebih luas
+                tanpa batas.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLoginLimitModal(false)}
+                className="w-full sm:w-auto rounded-2xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
+              >
+                Nanti Dulu
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLoginLimitModal(false);
+                  navigateTo('/login');
+                }}
+                className="w-full sm:w-auto rounded-2xl bg-slate-900 px-6 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
+              >
+                Masuk / Daftar Sekarang
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

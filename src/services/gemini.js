@@ -166,3 +166,90 @@ export async function runVirtualTryOn({ bodyDataUrl, outfitDataUrl, note = '' })
     text: visionText,
   };
 }
+
+/**
+ * Search Baju by Foto: Analisis foto pakaian/sepatu yang diupload pelanggan via Gemini Vision,
+ * lalu cocokkan ke daftar produk live katalog Talaka (termasuk filter budget jika aktif).
+ */
+export async function searchCatalogByPhoto({
+  imageDataUrl,
+  products = [],
+  maxBudget = null,
+  userNote = '',
+}) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error(
+      'API key Gemini belum diisi. Tambahkan VITE_GEMINI_API_KEY di file .env untuk fitur Search Baju by Foto.'
+    );
+  }
+
+  const imagePart = dataUrlToInlinePart(imageDataUrl);
+
+  const catalogLines = (products || []).map((p) => {
+    const withinBudget = !maxBudget || Number(p.price) <= Number(maxBudget);
+    return `- [${p.sku}] ${p.name} | Kategori: ${p.category} | Harga: ${p.priceFormatted} (${p.price}) | Warna: ${(p.colors || []).join(', ')} | Bahan: ${p.material} | Fit: ${p.fit} | Gaya: ${p.style} | Cocok untuk: ${p.occasions}${
+      maxBudget ? (withinBudget ? ' [MASUK BUDGET]' : ' [DI ATAS BUDGET]') : ''
+    }`;
+  });
+
+  const prompt = [
+    'Kamu adalah Kak Tala, Teman Gaya & AI Visual Stylist di toko fashion Talaka.',
+    'Pelanggan mengunggah 1 foto pakaian/sepatu/outfit untuk fitur **Search Baju by Foto** (mencari produk paling mirip di katalog Talaka).',
+    userNote ? `Pesan/keinginan pelanggan: "${userNote}"` : '',
+    maxBudget
+      ? `FILTER BUDGET AKTIF: Pelanggan memfilter maksimal harga Rp${Number(maxBudget).toLocaleString('id-ID')}. Prioritaskan produk berlabel [MASUK BUDGET]; jika tidak ada yang mirip di bawah budget, katakan dengan jujur.`
+      : '',
+    '',
+    'KATALOG PRODUK RESMI TALAKA:',
+    ...catalogLines,
+    '',
+    'TUGASMU:',
+    '1. Identifikasi singkat item fashion yang terlihat di foto (jenis item, warna dominan, potongan/siluet, dan vibe/gayanya).',
+    '2. Pilih 1 sampai 3 produk PALING MIRIP dari KATALOG PRODUK RESMI TALAKA di atas. WAJIB sebutkan **Nama Produk** beserta kode **(SKU)** persis seperti di katalog (contoh: **Kemeja Linen Talaka (KMJ-001)**) agar sistem otomatis menampilkan kartu produk & fotonya di bawah pesanmu.',
+    '3. Jelaskan secara jujur-suportif apa kemiripannya, apa sedikit perbedaannya (jika ada), dan tips padu-padan/ukurannya.',
+    '4. Akhiri dengan pertanyaan proaktif yang imersif (misal tawarkan cek ukuran TB/BB, hitung ongkir, atau langsung checkout di sini).',
+    'Gunakan Bahasa Indonesia yang hangat, natural, dan rapi dengan poin singkat.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const response = await fetch(
+    `${GEMINI_BASE_URL}/${VISION_FALLBACK_MODEL}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [imagePart, { text: prompt }],
+          },
+        ],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(
+      `Gagal mencari baju lewat foto di Gemini Vision (${response.status}): ${errText}`
+    );
+  }
+
+  const data = await response.json();
+  const text =
+    data?.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text)
+      .filter(Boolean)
+      .join('\n')
+      .trim() || '';
+
+  if (!text) {
+    throw new Error('Hasil analisis foto kosong. Coba upload foto yang lebih jelas ya Kak.');
+  }
+
+  return text;
+}
