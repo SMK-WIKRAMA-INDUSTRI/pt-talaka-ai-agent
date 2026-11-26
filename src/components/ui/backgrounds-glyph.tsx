@@ -301,9 +301,7 @@ function GlyphBackgroundContent({
 }: GlyphBackgroundProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  if (ref) {
-    React.useImperativeHandle(ref, () => containerRef.current as HTMLDivElement);
-  }
+  React.useImperativeHandle(ref, () => containerRef.current as HTMLDivElement);
 
   const inView = useInView(containerRef);
   const pageVisible = usePageVisible();

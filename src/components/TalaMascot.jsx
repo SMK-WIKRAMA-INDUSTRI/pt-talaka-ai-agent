@@ -3,15 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 // Ekspresi
 import talaBerpikir from '../assets/ekspresi/tala-berpikir.svg';
 import talaJatuhCinta from '../assets/ekspresi/tala-jatuh-cinta.svg';
-import talaKaget from '../assets/ekspresi/tala-kaget.svg';
 import talaKedip from '../assets/ekspresi/tala-kedip.svg';
-import talaNgantuk from '../assets/ekspresi/tala-ngantuk.svg';
 import talaSapa from '../assets/ekspresi/tala-sapa.svg';
-import talaSedih from '../assets/ekspresi/tala-sedih.svg';
 import talaSenang from '../assets/ekspresi/tala-senang.svg';
 
 // Lirikan (mata mengikuti teks dari kiri ke kanan)
-import talaLirikKiri from '../assets/lirikan/tala-lirik-kiri.svg';
 import talaLirikKiriBawah from '../assets/lirikan/tala-lirik-kiri-bawah.svg';
 import talaLirikBawah from '../assets/lirikan/tala-lirik-bawah.svg';
 import talaLirikKananBawah from '../assets/lirikan/tala-lirik-kanan-bawah.svg';
@@ -33,7 +29,7 @@ export default function TalaMascot({
   isTyping = false,
   isSending = false,
   lastMessage = null,
-  textareaRef = null,
+  textareaRef: _textareaRef = null,
   onMascotClick = null,
 }) {
   const [clickReaction, setClickReaction] = useState(null);
@@ -53,7 +49,7 @@ export default function TalaMascot({
   }, [isSending, isTyping, inputText]);
 
   // Evaluasi ekspresi atau lirikan aktif
-  const { currentSvg, moodLabel, speechText } = useMemo(() => {
+  const { currentSvg, moodLabel } = useMemo(() => {
     // 0. Reaksi klik manual jika baru saja diklik
     if (clickReaction) {
       return clickReaction;

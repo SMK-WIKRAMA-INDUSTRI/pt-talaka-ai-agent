@@ -10,6 +10,7 @@ import PromoVideoPage from './components/PromoVideoPage';
 import TalaMascot from './components/TalaMascot';
 import VoiceCallModal from './components/VoiceCallModal';
 import talakaLogo from './assets/talaka-logo.svg';
+import talaLoginGif from './assets/t/tala-login.gif';
 import {
   DEFAULT_BOT_NAME,
   DEFAULT_HONESTY_LEVEL,
@@ -79,7 +80,9 @@ import {
   Package,
   LayoutDashboard,
   Truck,
-  Search,
+  LogIn,
+  ArrowRight,
+  ChevronDown,
 } from 'lucide-react';
 
 const GUEST_CHAT_LIMIT = 3;
@@ -176,14 +179,17 @@ export default function App() {
   const [sessionId, setSessionId] = useState(() => `sess-${Date.now()}`);
   const contextText = buildTalakaKnowledgeFromProducts(products, showExactStock);
   const [activePageContext, setActivePageContext] = useState('beranda');
-  const [maxPriceFilter, setMaxPriceFilter] = useState(null);
+  const [showPageContextMenu, setShowPageContextMenu] = useState(false);
+  const pageContextRef = useRef(null);
+  const [maxPriceFilter, _setMaxPriceFilter] = useState(null);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
+  const [slowLoadingReady, setSlowLoadingReady] = useState(false);
+  const isSlowLoading = isSending && slowLoadingReady;
   const [error, setError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [handoffSent, setHandoffSent] = useState(false);
@@ -228,14 +234,13 @@ export default function App() {
   }, [messages]);
 
   useEffect(() => {
-    if (!isSending) {
-      setIsSlowLoading(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setIsSlowLoading(true);
-    }, 4000);
-    return () => clearTimeout(timer);
+    if (!isSending) return;
+    const resetTimer = setTimeout(() => setSlowLoadingReady(false), 0);
+    const slowTimer = setTimeout(() => setSlowLoadingReady(true), 4000);
+    return () => {
+      clearTimeout(resetTimer);
+      clearTimeout(slowTimer);
+    };
   }, [isSending]);
   const hasDeepgramKey = hasDeepgramApiKey();
 
@@ -277,6 +282,17 @@ export default function App() {
   useEffect(() => {
     writeStorage(STORAGE_KEYS.guestChatCount, String(guestChatCount));
   }, [guestChatCount]);
+
+  useEffect(() => {
+    if (!showPageContextMenu) return;
+    const handleClickOutside = (e) => {
+      if (pageContextRef.current && !pageContextRef.current.contains(e.target)) {
+        setShowPageContextMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPageContextMenu]);
 
   useEffect(() => {
     try {
@@ -1194,7 +1210,7 @@ export default function App() {
         <div className="absolute inset-0 bg-tech-grid opacity-50 pointer-events-none -z-10" />
 
         {/* Top Control Bar / High-Tech Console Banner */}
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 mb-6">
+        <div className="relative z-20 mx-auto max-w-5xl px-4 sm:px-6 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/90 shadow-sm">
             <div className="flex items-center gap-3.5">
               <div className="relative">
@@ -1223,25 +1239,103 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
-              {/* Product Simulation Picker */}
-              <div className="flex items-center gap-1.5 rounded-2xl bg-slate-50 border border-slate-200 px-3 py-1.5">
-                <Store className="w-3.5 h-3.5 text-slate-500" />
-                <span className="text-[11px] font-mono font-semibold text-slate-500 hidden md:inline">
-                  PAGE_CONTEXT:
-                </span>
-                <select
+              {/* Product Simulation Picker (Custom Warm Mocca Dropdown) */}
+              <div ref={pageContextRef} className="relative">
+                <button
+                  type="button"
                   aria-label="Simulasi halaman toko"
-                  value={activePageContext}
-                  onChange={(e) => setActivePageContext(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-900 focus:outline-none cursor-pointer"
+                  aria-expanded={showPageContextMenu}
+                  onClick={() => setShowPageContextMenu((prev) => !prev)}
+                  className={`flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-xs transition cursor-pointer ${
+                    showPageContextMenu
+                      ? 'bg-white border-[#9E7B66] shadow-xs'
+                      : 'bg-[#FAF7F4] border-[#E6DDD4] hover:border-[#9E7B66]'
+                  }`}
                 >
-                  <option value="beranda">Beranda Toko</option>
-                  {products.map((p) => (
-                    <option key={p.sku} value={`${p.name} (${p.sku})`}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                  <Store className="w-3.5 h-3.5 text-[#9E7B66] shrink-0" />
+                  <span className="text-[11px] font-mono font-semibold text-[#8C7B6E] hidden md:inline">
+                    PAGE_CONTEXT:
+                  </span>
+                  <span className="font-bold text-[#181615] max-w-[150px] sm:max-w-[190px] truncate">
+                    {activePageContext === 'beranda' ? 'Beranda Toko' : activePageContext}
+                  </span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-[#9E7B66] shrink-0 transition-transform duration-200 ${
+                      showPageContextMenu ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {showPageContextMenu && (
+                  <div className="absolute right-0 sm:left-0 mt-2 w-80 max-w-[90vw] rounded-3xl bg-white border border-[#E6DDD4] shadow-[0_20px_50px_rgba(24,22,21,0.14)] overflow-hidden z-50">
+                    <div className="bg-[#FDF8F5] border-b border-[#EDE5DC] px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#9E7B66]">
+                        Konteks Halaman Toko
+                      </span>
+                      <span className="text-[10px] font-mono text-[#8C7B6E]">
+                        {products.length + 1} pilihan
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePageContext('beranda');
+                          setShowPageContextMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-left text-xs transition cursor-pointer ${
+                          activePageContext === 'beranda'
+                            ? 'bg-[#F5EDE7] text-[#181615] font-bold'
+                            : 'text-[#4A413B] hover:bg-[#FAF7F4]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Store className="w-3.5 h-3.5 text-[#9E7B66] shrink-0" />
+                          <span className="truncate">Beranda Toko</span>
+                        </div>
+                        {activePageContext === 'beranda' && (
+                          <Check className="w-3.5 h-3.5 text-[#9E7B66] shrink-0" />
+                        )}
+                      </button>
+
+                      {products.map((p) => {
+                        const ctxVal = `${p.name} (${p.sku})`;
+                        const isSelected = activePageContext === ctxVal;
+                        return (
+                          <button
+                            key={p.sku}
+                            type="button"
+                            onClick={() => {
+                              setActivePageContext(ctxVal);
+                              setShowPageContextMenu(false);
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-left text-xs transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#F5EDE7] text-[#181615] font-bold'
+                                : 'text-[#4A413B] hover:bg-[#FAF7F4]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-mono font-bold ${
+                                  isSelected
+                                    ? 'bg-[#9E7B66] text-white'
+                                    : 'bg-[#FAF7F4] border border-[#E6DDD4] text-[#9E7B66]'
+                                }`}
+                              >
+                                {p.sku}
+                              </span>
+                              <span className="truncate">{p.name}</span>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-[#9E7B66] shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Lacak Pesanan & Notif AI */}
@@ -1411,30 +1505,32 @@ export default function App() {
             {/* Banner Kuota Percobaan Tamu (Jika Belum Login) */}
             {!currentUser && (
               <div
-                className={`border-b px-5 py-2 text-xs flex flex-wrap items-center justify-between gap-2 ${
+                className={`border-b px-5 py-2.5 text-xs flex flex-wrap items-center justify-between gap-2.5 ${
                   guestChatCount >= GUEST_CHAT_LIMIT
-                    ? 'bg-amber-50 border-amber-200 text-amber-900'
-                    : 'bg-slate-50/90 border-slate-200/80 text-slate-600'
+                    ? 'bg-gradient-to-r from-[#FDF8F5] via-[#F5EDE7] to-[#EDD9CC] border-[#9E7B66]/35 text-[#181615]'
+                    : 'bg-[#FDF8F5] border-[#E6DDD4] text-[#5C4E44]'
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <Lock
-                    className={`w-3.5 h-3.5 shrink-0 ${
+                  <span
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
                       guestChatCount >= GUEST_CHAT_LIMIT
-                        ? 'text-amber-600'
-                        : 'text-[#9E7B66]'
+                        ? 'bg-[#9E7B66] text-white'
+                        : 'bg-[#9E7B66]/12 text-[#9E7B66]'
                     }`}
-                  />
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                  </span>
                   <span>
                     {guestChatCount >= GUEST_CHAT_LIMIT ? (
                       <>
                         <strong>Batas {GUEST_CHAT_LIMIT}x percobaan tamu tercapai.</strong>{' '}
-                        Login untuk menggunakan Kak Tala lebih luas tanpa batas.
+                        Masuk untuk lanjut mengobrol dengan {displayBotName} tanpa batas.
                       </>
                     ) : (
                       <>
                         Mode Tamu · Sisa{' '}
-                        <strong className="text-slate-900">
+                        <strong className="text-[#181615]">
                           {Math.max(0, GUEST_CHAT_LIMIT - guestChatCount)} dari{' '}
                           {GUEST_CHAT_LIMIT}
                         </strong>{' '}
@@ -1443,6 +1539,18 @@ export default function App() {
                     )}
                   </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('/login')}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-[11px] font-bold transition cursor-pointer shrink-0 ${
+                    guestChatCount >= GUEST_CHAT_LIMIT
+                      ? 'bg-[#9E7B66] text-white hover:bg-[#856552] shadow-xs'
+                      : 'bg-white border border-[#9E7B66]/35 text-[#9E7B66] hover:bg-[#9E7B66] hover:text-white'
+                  }`}
+                >
+                  <LogIn className="w-3 h-3" />
+                  <span>{guestChatCount >= GUEST_CHAT_LIMIT ? 'Masuk / Daftar' : 'Masuk'}</span>
+                </button>
               </div>
             )}
 
@@ -2247,26 +2355,6 @@ export default function App() {
 
               <div className="flex items-end gap-2.5">
                 <div className="relative flex-1 flex items-end rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-slate-900 transition">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isSending}
-                    className="ml-2 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
-                    title="Search Baju by Foto (upload foto baju/sepatu untuk cari yang mirip di Talaka)"
-                    aria-label="Cari baju dengan foto"
-                  >
-                    <ImageIcon className="w-4 h-4 text-slate-700" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => pdfInputRef.current?.click()}
-                    disabled={isReadingPdf || isSending}
-                    className="ml-1 mb-2 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-950 flex items-center justify-center shrink-0 transition cursor-pointer disabled:opacity-40"
-                    title="Upload PDF undangan acara, kerja, atau setlist outfit"
-                    aria-label="Upload PDF"
-                  >
-                    <FileText className="w-4 h-4 text-[#9E7B66]" />
-                  </button>
                   <textarea
                     ref={chatInputRef}
                     id="chat-input"
@@ -2295,7 +2383,7 @@ export default function App() {
                     }}
                     onKeyDown={handleKeyDown}
                     placeholder={`Tanya ${displayBotName} soal ukuran, gaya, atau upload PDF undangan/setlist...`}
-                    className="w-full bg-transparent py-2.5 pr-4 pl-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed"
+                    className="w-full bg-transparent py-2.5 px-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed"
                   />
                 </div>
 
@@ -2344,6 +2432,109 @@ export default function App() {
                 </button>
               </div>
             </form>
+
+            {/* Overlay Wajib Login: Hanya memblur area Chatbot + Card Tema LoginPage */}
+            {showLoginLimitModal && (
+              <div className="absolute inset-0 z-30 bg-[#FAF7F4]/65 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+                <div className="w-full max-w-[430px] rounded-[28px] overflow-hidden bg-white border border-[#E6DDD4] shadow-[0_24px_60px_rgba(24,22,21,0.16)]">
+                  {/* Top Warm Mocca Band (Senada LoginPage) */}
+                  <div className="relative bg-gradient-to-br from-[#FDF8F5] via-[#F5EDE7] to-[#EDD9CC] px-6 pt-5 pb-8">
+                    <div className="flex items-center justify-between mb-3">
+                      <img src={talakaLogo} alt="Talaka" className="h-5 w-auto opacity-85" />
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 border border-[#9E7B66]/30 px-2.5 py-0.5 text-[10px] font-mono font-bold text-[#9E7B66] shadow-2xs">
+                        <Lock className="w-2.5 h-2.5" />
+                        KUOTA TAMU {GUEST_CHAT_LIMIT}/{GUEST_CHAT_LIMIT}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-center text-center">
+                      <div className="relative">
+                        <div className="w-20 h-20 rounded-full bg-white p-1 border border-[#9E7B66]/30 shadow-lg ring-4 ring-white/60 overflow-hidden">
+                          <img
+                            src={talaLoginGif}
+                            alt="Kak Tala"
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        </div>
+                        <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#9E7B66] text-white flex items-center justify-center shadow-md border-2 border-white">
+                          <Sparkles className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Wave Seam Divider */}
+                    <svg
+                      className="absolute bottom-0 left-0 w-full h-5 pointer-events-none"
+                      viewBox="0 0 400 24"
+                      preserveAspectRatio="none"
+                    >
+                      <path
+                        d="M0 12 C 110 24, 290 0, 400 12 L 400 24 L 0 24 Z"
+                        fill="#ffffff"
+                      />
+                      <path
+                        d="M0 12 C 110 24, 290 0, 400 12"
+                        fill="none"
+                        stroke="#9E7B66"
+                        strokeOpacity="0.4"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="px-6 pb-6 pt-2 text-center space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-extrabold text-[#181615] tracking-tight">
+                        Lanjutkan Bareng {displayBotName}
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        3 percobaan gratis sudah terpakai. Masuk atau daftar akun gratis untuk membuka akses penuh:
+                      </p>
+                    </div>
+
+                    {/* Feature Highlights */}
+                    <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold text-[#5C4E44]">
+                      <div className="rounded-2xl bg-[#FAF7F4] border border-[#EDE5DC] px-2 py-2 flex flex-col items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-[#9E7B66]" />
+                        <span className="leading-tight">Chat AI Tanpa Batas</span>
+                      </div>
+                      <div className="rounded-2xl bg-[#FAF7F4] border border-[#EDE5DC] px-2 py-2 flex flex-col items-center gap-1">
+                        <Shirt className="w-3.5 h-3.5 text-[#9E7B66]" />
+                        <span className="leading-tight">Virtual Try-On</span>
+                      </div>
+                      <div className="rounded-2xl bg-[#FAF7F4] border border-[#EDE5DC] px-2 py-2 flex flex-col items-center gap-1">
+                        <PhoneCall className="w-3.5 h-3.5 text-[#9E7B66]" />
+                        <span className="leading-tight">Telepon &amp; Lookbook</span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="space-y-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginLimitModal(false);
+                          navigateTo('/login');
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#9E7B66] to-[#856552] hover:from-[#8C6A56] hover:to-[#725443] px-6 py-3 text-xs font-bold text-white transition cursor-pointer shadow-[0_10px_28px_rgba(158,123,102,0.35)]"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Masuk / Daftar Sekarang</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginLimitModal(false)}
+                        className="w-full rounded-xl py-1.5 text-[11px] font-semibold text-slate-500 hover:text-[#181615] transition cursor-pointer"
+                      >
+                        Lihat riwayat chat dulu
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         </main>
       </section>
@@ -2504,51 +2695,6 @@ export default function App() {
         currentUser={currentUser}
         onOpenAdmin={() => navigateTo('/admin')}
       />
-
-      {/* Alert Modal: Wajib Login Setelah 3x Percobaan Chat Tamu */}
-      {showLoginLimitModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 text-center space-y-4">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-              <Lock className="w-7 h-7 text-amber-600" />
-            </div>
-            <div className="space-y-1.5">
-              <span className="inline-block rounded-full bg-amber-100 px-3 py-0.5 text-[10px] font-mono font-bold text-amber-800">
-                BATAS PERCOBAAN TAMU (3 / 3)
-              </span>
-              <h3 className="text-lg font-extrabold text-slate-950">
-                Yuk Login untuk Akses Lebih Luas!
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                Kamu sudah memakai <strong>3 kali percobaan gratis</strong> bersama{' '}
-                {displayBotName}. Silakan <strong>Masuk atau Daftar Akun</strong>{' '}
-                terlebih dahulu jika ingin terus menggunakan konsultasi AI,
-                Virtual Try-On, Lookbook PDF, dan fitur Telepon secara lebih luas
-                tanpa batas.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowLoginLimitModal(false)}
-                className="w-full sm:w-auto rounded-2xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
-              >
-                Nanti Dulu
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLoginLimitModal(false);
-                  navigateTo('/login');
-                }}
-                className="w-full sm:w-auto rounded-2xl bg-slate-900 px-6 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
-              >
-                Masuk / Daftar Sekarang
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
