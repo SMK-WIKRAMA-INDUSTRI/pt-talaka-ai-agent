@@ -34,6 +34,7 @@ async function analyzeTwoImagesWithVision({ apiKey, bodyPart, outfitPart, note }
     '1. Jelaskan bagaimana potongan, warna, dan proporsi baju di foto kedua akan terlihat jika dipakai di postur/foto pertama.',
     '2. Berikan masukan jujur jika ada bagian yang kurang pas (misal panjang, potongan bahu, kontras warna kulit/outfit) beserta saran cara memakainya atau alternatif yang lebih cocok.',
     '3. Jangan pernah menyebut tubuh pelanggan sebagai kekurangan atau memberi saran diet.',
+    '4. PENTING: JANGAN memperkenalkan diri lagi di awal balasan (jangan menulis "Halo! Kenalin, aku Kak Tala..." atau menyebut jabatanmu). Langsung bahas hasil analisis fotonya secara natural.',
     'Jawab singkat dan hangat dalam Bahasa Indonesia (3-5 kalimat).',
   ]
     .filter(Boolean)
@@ -95,7 +96,7 @@ export async function runVirtualTryOn({ bodyDataUrl, outfitDataUrl, note = '' })
     'Generate a realistic photo of the person from Image 1 wearing the garment from Image 2.',
     'Preserve the person face, skin tone, pose, body proportions, and background from Image 1 as naturally as possible, while accurately transferring the garment cut, color, texture, and pattern from Image 2.',
     note ? `Customer preference/note: ${note}` : '',
-    'Also add a brief friendly style comment in Indonesian (2-3 sentences) as Kak Tala from Talaka.',
+    'Also add a brief friendly style comment in Indonesian (2-3 sentences) as Kak Tala from Talaka. Do NOT introduce yourself (no "Halo! Kenalin, aku Kak Tala..."), jump straight into the style comment.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -209,6 +210,7 @@ export async function searchCatalogByPhoto({
     '2. Pilih 1 sampai 3 produk PALING MIRIP dari KATALOG PRODUK RESMI TALAKA di atas. WAJIB sebutkan **Nama Produk** beserta kode **(SKU)** persis seperti di katalog (contoh: **Kemeja Linen Talaka (KMJ-001)**) agar sistem otomatis menampilkan kartu produk & fotonya di bawah pesanmu.',
     '3. Jelaskan secara jujur-suportif apa kemiripannya, apa sedikit perbedaannya (jika ada), dan tips padu-padan/ukurannya.',
     '4. Akhiri dengan pertanyaan proaktif yang imersif (misal tawarkan cek ukuran TB/BB, hitung ongkir, atau langsung checkout di sini).',
+    '5. PENTING: JANGAN memperkenalkan diri lagi di awal balasan (dilarang menulis "Halo! Kenalin, aku Kak Tala, teman gaya..." atau sejenisnya). Pelanggan sudah tahu kamu Kak Tala, jadi langsung saja bahas foto yang diunggah dan rekomendasinya secara natural!',
     'Gunakan Bahasa Indonesia yang hangat, natural, dan rapi dengan poin singkat.',
   ]
     .filter(Boolean)

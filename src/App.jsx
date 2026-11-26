@@ -183,6 +183,7 @@ export default function App() {
   const [cursorPos, setCursorPos] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [error, setError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [handoffSent, setHandoffSent] = useState(false);
@@ -225,6 +226,17 @@ export default function App() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    if (!isSending) {
+      setIsSlowLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isSending]);
   const hasDeepgramKey = hasDeepgramApiKey();
 
   const scrollToChat = () => {
@@ -329,54 +341,99 @@ export default function App() {
 
   async function handleConfirmChatCheckout(payload) {
     const activeUsername = currentUser?.username || 'guest';
+    const orderItems =
+      Array.isArray(payload.items) && payload.items.length > 0
+        ? payload.items
+        : [
+            {
+              sku: payload.sku,
+              name: payload.name,
+              image: payload.image || '',
+              color: payload.color,
+              size: payload.size,
+              qty: payload.qty,
+              price: payload.price,
+            },
+          ];
+
     const { order } = await createOrderInDb({
       customerUsername: activeUsername,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone,
       shippingAddress: payload.shippingAddress,
       paymentMethod: payload.paymentMethod,
-      items: [
-        {
-          sku: payload.sku,
-          name: payload.name,
-          image: payload.image || '',
-          color: payload.color,
-          size: payload.size,
-          qty: payload.qty,
-          price: payload.price,
-        },
-      ],
+      items: orderItems,
       totalPrice: payload.totalPrice,
     });
 
-    handleUpdateProductStock(
-      payload.sku,
-      payload.color,
-      payload.size,
-      -payload.qty
-    );
+    for (const item of orderItems) {
+      handleUpdateProductStock(item.sku, item.color, item.size, -item.qty);
+    }
     await loadCustomerOrdersAndNotifs();
     return order;
   }
 
   function handleQuickCheckoutFromCard(product) {
-    const defaultColor = product.colors?.[0] || '';
+    const defaultColor =
+      product.colors?.find((c) => {
+        const sm = product.sizes?.[c] || {};
+        return Object.values(sm).some((v) => Number(v) > 0);
+      }) ||
+      product.colors?.[0] ||
+      '';
     const sizeMap = product.sizes?.[defaultColor] || {};
     const readySize =
       Object.keys(sizeMap).find((sz) => (sizeMap[sz] || 0) > 0) ||
       Object.keys(sizeMap)[0] ||
       '';
     const draft = {
-      sku: product.sku,
-      color: defaultColor,
-      size: readySize,
-      qty: 1,
+      items: [
+        {
+          sku: product.sku,
+          color: defaultColor,
+          size: readySize,
+          qty: 1,
+        },
+      ],
       customerName: currentUser?.fullName || '',
       customerPhone: '',
       shippingAddress: '',
       paymentMethod: 'COD',
     };
     const msgText = `Siap Kak! Aku sudah siapkan kartu checkout untuk **${product.name} (${product.sku})**. Silakan cek warna, ukuran, dan lengkapi alamat pengiriman di bawah lalu klik **Konfirmasi & Buat Pesanan** ya! ✨\n[TALAKA_CHECKOUT]${JSON.stringify(draft)}[/TALAKA_CHECKOUT]`;
+    setMessages((prev) => [...prev, { role: 'assistant', content: msgText }]);
+  }
+
+  function handleQuickCheckoutAllFromCards(productList) {
+    if (!Array.isArray(productList) || productList.length === 0) return;
+    const items = productList.map((product) => {
+      const defaultColor =
+        product.colors?.find((c) => {
+          const sm = product.sizes?.[c] || {};
+          return Object.values(sm).some((v) => Number(v) > 0);
+        }) ||
+        product.colors?.[0] ||
+        '';
+      const sizeMap = product.sizes?.[defaultColor] || {};
+      const readySize =
+        Object.keys(sizeMap).find((sz) => (sizeMap[sz] || 0) > 0) ||
+        Object.keys(sizeMap)[0] ||
+        '';
+      return {
+        sku: product.sku,
+        color: defaultColor,
+        size: readySize,
+        qty: 1,
+      };
+    });
+    const draft = {
+      items,
+      customerName: currentUser?.fullName || '',
+      customerPhone: '',
+      shippingAddress: '',
+      paymentMethod: 'COD',
+    };
+    const msgText = `Siap Kak! Semua **${items.length} produk** sudah langsung masuk ke 1 kartu checkout di bawah ini. Silakan atur warna, ukuran, jumlah (atau hapus item yang tidak jadi), lalu lengkapi alamat pengiriman dan klik **Checkout Semua** ya! ✨\n[TALAKA_CHECKOUT]${JSON.stringify(draft)}[/TALAKA_CHECKOUT]`;
     setMessages((prev) => [...prev, { role: 'assistant', content: msgText }]);
   }
 
@@ -1718,8 +1775,28 @@ export default function App() {
 
                     {/* Interactive Product Cards inside Chat Stream */}
                     {mentionedProducts.length > 0 && (
-                      <div className="flex flex-wrap gap-3 pl-11">
-                        {mentionedProducts.slice(0, 3).map((product) => (
+                      <div className="pl-11 space-y-2.5">
+                        {mentionedProducts.length > 1 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[11px] font-mono font-bold text-slate-500">
+                              MENAMPILKAN SEMUA {mentionedProducts.length} PRODUK
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuickCheckoutAllFromCards(mentionedProducts)
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-black transition cursor-pointer shadow-xs"
+                            >
+                              <ShoppingBag className="w-3.5 h-3.5 text-[#D6B7A5]" />
+                              <span>
+                                Checkout Semua ({mentionedProducts.length} Produk)
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-3">
+                        {mentionedProducts.map((product) => (
                           <div
                             key={product.sku}
                             className="w-68 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs space-y-2 hover:border-slate-400 transition"
@@ -1787,6 +1864,7 @@ export default function App() {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </div>
                     )}
 
@@ -1900,7 +1978,9 @@ export default function App() {
                       <span className="h-2 w-2 rounded-full bg-slate-900 animate-bounce [animation-delay:300ms]" />
                     </span>
                     <span className="font-mono text-slate-800 text-[11px]">
-                      {displayBotName} sedang menganalisis proporsi pakaian...
+                      {isSlowLoading
+                        ? 'Sebentar, akan segera kami jawab...'
+                        : `${displayBotName} sedang menganalisis proporsi pakaian...`}
                     </span>
                   </div>
                 </div>
