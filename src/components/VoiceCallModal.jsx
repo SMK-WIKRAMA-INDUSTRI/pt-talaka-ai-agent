@@ -26,6 +26,7 @@ import {
   synthesizeSpeechWithDeepgram,
   transcribeAudioWithDeepgram,
 } from '../services/deepgram';
+import { playCallSoundEffect } from '../services/callSound';
 
 const CALL_STATE_ASSETS = {
   connecting: talaTeleponMenghubungkan,
@@ -48,6 +49,9 @@ const FILLER_PHRASES = [
   'Oke siap Kak, sebentar ya aku cek dulu...',
   'Siap Kak, tunggu sebentar ya...',
 ];
+
+const GREETING_PAUSE_MS = 300;
+const UTTERANCE_SILENCE_MS = 1000;
 
 function getTurnReaction(transcript, reply) {
   const userText = String(transcript || '').toLowerCase();
@@ -267,6 +271,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     if (isEndingRef.current) return;
     isEndingRef.current = true;
     speechTurnRef.current += 1;
+    playCallSoundEffect('hangup');
     setCallState('parting');
     releaseMediaResources();
     partingTimerRef.current = setTimeout(() => {
@@ -279,7 +284,11 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     async (
       text,
       nextStep,
-      { reaction = null, reactionDurationMs = 0 } = {}
+      {
+        reaction = null,
+        reactionDurationMs = 0,
+        preferBrowserId = false,
+      } = {}
     ) => {
       if (!isActiveRef.current) return;
       if (!speakerOnRef.current) {
@@ -314,10 +323,20 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       };
 
       try {
-        const controller = await speakIndonesianAuto(text, {
-          onEnd: handleSpeechEnd,
-          onError: handleSpeechEnd,
-        });
+        let controller;
+        try {
+          controller = await speakIndonesianAuto(text, {
+            onEnd: handleSpeechEnd,
+            onError: handleSpeechEnd,
+            preferBrowserId,
+          });
+        } catch (error) {
+          if (!preferBrowserId) throw error;
+          controller = await speakIndonesianAuto(text, {
+            onEnd: handleSpeechEnd,
+            onError: handleSpeechEnd,
+          });
+        }
         if (
           !isActiveRef.current ||
           speechTurnRef.current !== speechTurn
@@ -421,7 +440,11 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
           {
             reaction,
             reactionDurationMs:
-              reaction === 'greeting' ? 1800 : reaction ? 850 : 0,
+              reaction === 'greeting'
+                ? GREETING_PAUSE_MS
+                : reaction
+                  ? 850
+                  : 0,
           }
         );
       } catch (err) {
@@ -496,7 +519,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
         setCallState('waiting');
       }
 
-      if ((hasSpoken && silenceMs > 1400) || totalMs > 22000) {
+      if ((hasSpoken && silenceMs > UTTERANCE_SILENCE_MS) || totalMs > 22000) {
         stoppedManually = hasSpoken;
         recorder.stop();
         return;
@@ -574,12 +597,12 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
           fillerUrlsRef.current = urls;
         });
 
-        const greeting = `Halo Kak! Aku ${botName}. Ceritain aja tinggi, berat badan, atau acara kamu hari ini ya.`;
-        setLastBotText(greeting);
-        setCallState('greeting');
-        await new Promise((resolve) => setTimeout(resolve, 1800));
         if (cancelled || !isActiveRef.current) return;
-        speakAndThen(greeting, () => startListeningRef.current?.());
+        const greeting = 'Halo!';
+        setLastBotText(greeting);
+        speakAndThen(greeting, () => startListeningRef.current?.(), {
+          preferBrowserId: true,
+        });
       } catch {
         if (!cancelled) {
           setCallError(

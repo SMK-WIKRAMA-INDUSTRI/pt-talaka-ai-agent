@@ -28,6 +28,7 @@ import {
   stopBrowserIndonesianSpeech,
   transcribeAudioWithDeepgram,
 } from './services/deepgram';
+import { playCallSoundEffect } from './services/callSound';
 import {
   hasGeminiApiKey,
   runVirtualTryOn,
@@ -1212,6 +1213,17 @@ export default function App() {
                 </button>
               )}
 
+              <button
+                type="button"
+                onClick={handleManualHandoff}
+                disabled={isSending}
+                className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-2xs"
+                title="Hubungi Admin Manusia via WhatsApp"
+              >
+                <Phone className="w-3.5 h-3.5 text-slate-500" />
+                <span>Admin WA</span>
+              </button>
+
               {/* Scroll to Top Button */}
               <button
                 type="button"
@@ -1265,14 +1277,15 @@ export default function App() {
                         return;
                       }
                       stopAiSpeech();
+                      playCallSoundEffect('connect');
                       setShowVoiceCallModal(true);
                     }}
                     disabled={isSending}
-                    className="rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-2xs"
-                    title="Telepon langsung dengan Kak Tala (Deepgram Voice Call)"
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-2xs"
+                    title="Hubungi Admin melalui Telepon AI"
                   >
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    <span>Telepon</span>
+                    <PhoneCall className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Hubungi Admin</span>
                   </button>
                 )}
                 {hasDeepgramKey && (
@@ -1324,16 +1337,6 @@ export default function App() {
                   <span className="hidden sm:inline">
                     {isExportingPdf ? 'Membuat PDF...' : 'Export PDF'}
                   </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleManualHandoff}
-                  disabled={isSending}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
-                  title="Hubungi Admin Manusia via WhatsApp"
-                >
-                  <Phone className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="hidden sm:inline">Admin WA</span>
                 </button>
                 <button
                   type="button"
