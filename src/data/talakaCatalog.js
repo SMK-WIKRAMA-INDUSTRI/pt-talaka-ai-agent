@@ -3078,9 +3078,20 @@ export function buildDefaultTalakaKnowledge(showExactStock = false) {
 export function findMentionedProducts(text, products = TALAKA_PRODUCTS) {
   if (!text) return [];
   const lower = text.toLowerCase();
-  return products.filter(
-    (p) =>
-      lower.includes(p.sku.toLowerCase()) ||
-      lower.includes(p.name.toLowerCase())
-  );
+  const matched = [];
+  for (const prod of products) {
+    const skuIdx = lower.indexOf(prod.sku.toLowerCase());
+    const nameIdx = lower.indexOf(prod.name.toLowerCase());
+    const firstIdx =
+      skuIdx !== -1 && nameIdx !== -1
+        ? Math.min(skuIdx, nameIdx)
+        : skuIdx !== -1
+          ? skuIdx
+          : nameIdx;
+    if (firstIdx !== -1) {
+      matched.push({ product: prod, firstIdx });
+    }
+  }
+  matched.sort((a, b) => a.firstIdx - b.firstIdx);
+  return matched.map((m) => m.product);
 }
