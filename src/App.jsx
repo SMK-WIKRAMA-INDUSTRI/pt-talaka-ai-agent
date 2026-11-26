@@ -83,14 +83,6 @@ import {
 
 const GUEST_CHAT_LIMIT = 3;
 
-const PRICE_FILTER_OPTIONS = [
-  { value: null, label: 'Semua' },
-  { value: 250000, label: '≤ 250rb' },
-  { value: 300000, label: '≤ 300rb' },
-  { value: 400000, label: '≤ 400rb' },
-  { value: 550000, label: '≤ 550rb' },
-];
-
 const STORAGE_KEYS = {
   products: 'talaka_live_products_v8',
   authUser: 'talaka_auth_user_v1',
@@ -1391,13 +1383,6 @@ export default function App() {
                     )}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('/login')}
-                  className="rounded-full bg-slate-900 text-white px-3 py-1 text-[11px] font-bold hover:bg-black transition cursor-pointer"
-                >
-                  Masuk / Daftar
-                </button>
               </div>
             )}
 
@@ -1424,83 +1409,6 @@ export default function App() {
                 </button>
               </div>
             )}
-
-            {/* Strip Filter Harga & Quick Tools CS (Ongkir, Cek Resi, Cari by Foto) */}
-            <div className="border-b border-slate-200/80 bg-white px-4 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                <span className="font-mono font-bold text-slate-400 shrink-0 mr-0.5">
-                  BUDGET:
-                </span>
-                {PRICE_FILTER_OPTIONS.map((opt) => {
-                  const isActive = maxPriceFilter === opt.value;
-                  return (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => setMaxPriceFilter(opt.value)}
-                      className={`shrink-0 rounded-full px-2.5 py-1 font-semibold transition cursor-pointer border ${
-                        isActive
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-                {maxPriceFilter && (
-                  <span className="shrink-0 font-mono text-[10px] text-[#9E7B66] font-bold ml-1">
-                    (
-                    {
-                      products.filter((p) => Number(p.price) <= maxPriceFilter)
-                        .length
-                    }{' '}
-                    produk)
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending}
-                  className="rounded-full border border-[#9E7B66]/40 bg-[#9E7B66]/10 px-2.5 py-1 font-bold text-[#9E7B66] hover:bg-[#9E7B66] hover:text-white transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  title="Upload foto baju/sepatu untuk cari produk paling mirip di Talaka"
-                >
-                  <Search className="w-3 h-3" />
-                  <span>Cari by Foto</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInsertTemplate(
-                      'Kak, tolong hitung ongkir & estimasi tiba dari Bogor ke kota '
-                    )
-                  }
-                  disabled={isSending}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  title="Hitung ongkir & estimasi tiba"
-                >
-                  <Truck className="w-3 h-3 text-emerald-600" />
-                  <span>Ongkir</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInsertTemplate(
-                      'Kak, paketku udah sampai mana ya? Nomor resi / kode order: '
-                    )
-                  }
-                  disabled={isSending}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-950 transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  title="Cek status paket lewat nomor resi atau kode pesanan"
-                >
-                  <Package className="w-3 h-3 text-blue-600" />
-                  <span>Cek Resi</span>
-                </button>
-              </div>
-            </div>
 
             {/* Area Pesan Chat */}
             <div
@@ -1538,94 +1446,83 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 4 Interactive Scenario Cards */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500">
-                        TEST_SCENARIO_PROMPTS:
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        Klik untuk simulasi instan
-                      </span>
-                    </div>
+                  {/* 4 Interactive Quick Prompt Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendQuestion(
+                          'Halo Kak Tala, ada promo atau diskon menarik apa saja yang sedang berlangsung hari ini?'
+                        )
+                      }
+                      disabled={isSending}
+                      className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                        <Tag className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Promo</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                        “Ada promo atau diskon menarik apa hari ini?”
+                      </p>
+                    </button>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendQuestion(
-                            'Aku tinggi 160 cm berat 52 kg, kemeja linen putih ukuran apa yang pas biar rapi dan nggak kedodoran?'
-                          )
-                        }
-                        disabled={isSending}
-                        className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                          <Ruler className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Rekomendasi Ukuran TB &amp; BB</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-2">
-                          “TB 160cm BB 52kg kemeja linen ukuran apa yang pas?”
-                        </p>
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendQuestion(
+                          'Kak Tala, apa saja rekomendasi produk yang lagi tren fashion dan paling hits bulan ini?'
+                        )
+                      }
+                      disabled={isSending}
+                      className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Rekomendasi Bulan Ini</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                        “Produk apa yang lagi tren fashion bulan ini?”
+                      </p>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendQuestion(
-                            'Celana kulot high-waist krem cocoknya dipadu sama atasan apa ya buat ngampus casual?'
-                          )
-                        }
-                        disabled={isSending}
-                        className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                          <Shirt className="w-3.5 h-3.5 text-[#9E7B66]" />
-                          <span>Padu Padan OOTD Mahasiswa</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-2">
-                          “Celana kulot krem cocok dipadu sama apa buat ngampus?”
-                        </p>
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendQuestion(
+                          'Kak Tala, boleh minta saran inspirasi padu padan OOTD yang stylish dan kekinian?'
+                        )
+                      }
+                      disabled={isSending}
+                      className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                        <Shirt className="w-3.5 h-3.5 text-[#9E7B66]" />
+                        <span>Saran OOTD</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                        “Ide padu padan OOTD yang stylish dan kekinian”
+                      </p>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendQuestion(
-                            'Kemeja linen putih ukuran M masih ada stoknya? Bisa COD ke Bandung?'
-                          )
-                        }
-                        disabled={isSending}
-                        className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                          <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Cek Stok &amp; Opsi Pengiriman COD</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-2">
-                          “Kemeja linen putih M masih ada? Bisa COD?”
-                        </p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendQuestion(
-                            'Kalau TB aku 154 cm pakai celana kulot high-waist kepanjangan nyapu lantai nggak kak? Jujur ya.'
-                          )
-                        }
-                        disabled={isSending}
-                        className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
-                          <Sparkles className="w-3.5 h-3.5 text-[#9E7B66]" />
-                          <span>Uji Kejujuran Suportif </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-2">
-                          “TB 154 cm pakai kulot nyapu lantai nggak? Tolong jujur ya.”
-                        </p>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        sendQuestion(
+                          'Kak Tala, aku mau cek ukuran. Kalau TB 160 cm dan BB 52 kg, ukuran baju yang paling pas apa ya?'
+                        )
+                      }
+                      disabled={isSending}
+                      className="group text-left rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:shadow-xs transition cursor-pointer flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                        <Ruler className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Cek Ukuran BB &amp; TB</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                        “TB 160cm BB 52kg ukuran apa yang paling pas?”
+                      </p>
+                    </button>
                   </div>
                 </div>
               )}
