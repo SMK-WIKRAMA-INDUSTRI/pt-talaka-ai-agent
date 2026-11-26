@@ -9,8 +9,16 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import talaKedip from '../assets/ekspresi/tala-kedip.svg';
-import talaSenang from '../assets/ekspresi/tala-senang.svg';
+import talaTeleponBerbicara from '../assets/telpon/tala-telepon-berbicara.gif';
+import talaTeleponBerpamitan from '../assets/telpon/tala-telepon-berpamitan.gif';
+import talaTeleponBerpikir from '../assets/telpon/tala-telepon-berpikir.gif';
+import talaTeleponBingung from '../assets/telpon/tala-telepon-bingung.gif';
+import talaTeleponMendengarkan from '../assets/telpon/tala-telepon-mendengarkan.gif';
+import talaTeleponMenghubungkan from '../assets/telpon/tala-telepon-menghubungkan.gif';
+import talaTeleponMenunggu from '../assets/telpon/tala-telepon-menunggu.gif';
+import talaTeleponMenyapa from '../assets/telpon/tala-telepon-menyapa.gif';
+import talaTeleponMintaMaaf from '../assets/telpon/tala-telepon-minta-maaf.gif';
+import talaTeleponSenang from '../assets/telpon/tala-telepon-senang.gif';
 import {
   hasDeepgramApiKey,
   speakIndonesianAuto,
@@ -19,11 +27,62 @@ import {
   transcribeAudioWithDeepgram,
 } from '../services/deepgram';
 
+const CALL_STATE_ASSETS = {
+  connecting: talaTeleponMenghubungkan,
+  greeting: talaTeleponMenyapa,
+  listening: talaTeleponMendengarkan,
+  transcribing: talaTeleponBerpikir,
+  thinking: talaTeleponBerpikir,
+  speaking: talaTeleponBerbicara,
+  happy: talaTeleponSenang,
+  apologizing: talaTeleponMintaMaaf,
+  confused: talaTeleponBingung,
+  waiting: talaTeleponMenunggu,
+  parting: talaTeleponBerpamitan,
+  muted: talaTeleponMendengarkan,
+  error: talaTeleponBingung,
+};
+
 const FILLER_PHRASES = [
   'Baik Kak, tunggu sebentar dulu ya...',
   'Oke siap Kak, sebentar ya aku cek dulu...',
   'Siap Kak, tunggu sebentar ya...',
 ];
+
+function getTurnReaction(transcript, reply) {
+  const userText = String(transcript || '').toLowerCase();
+  const assistantText = String(reply || '').toLowerCase();
+
+  if (/\b(halo|hai|haii|hello|helo|assalamu.?alaikum)\b/.test(userText)) {
+    return 'greeting';
+  }
+  if (
+    /\b(terima kasih|makasih|makasi|thanks|thank you)\b/.test(userText) ||
+    /\b(berhasil|sudah selesai|sudah diterima)\b/.test(userText)
+  ) {
+    return 'happy';
+  }
+  if (
+    /\b(maaf|stok.{0,20}habis|tidak tersedia|belum tersedia|di luar topik|tidak bisa membantu)\b/.test(
+      assistantText
+    )
+  ) {
+    return 'apologizing';
+  }
+  return null;
+}
+
+function isClosingThanks(transcript) {
+  const text = String(transcript || '').toLowerCase();
+  const expressedThanks =
+    /\b(terima kasih|makasih|makasi|thanks|thank you)\b/.test(text);
+  const hasFollowUp =
+    /[?]|\b(tapi|tetapi|namun|sekalian|lalu|terus|mau|bisa|tolong|kalau|apakah|ada|tanya|pertanyaan|satu lagi)\b/.test(
+      text
+    );
+
+  return expressedThanks && !hasFollowUp;
+}
 
 function formatCallDuration(totalSec) {
   const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
@@ -42,6 +101,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
   const [callError, setCallError] = useState('');
 
   const isActiveRef = useRef(false);
+  const isEndingRef = useRef(false);
   const isMutedRef = useRef(false);
   const speakerOnRef = useRef(true);
   const streamRef = useRef(null);
@@ -50,13 +110,16 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const vadRafRef = useRef(null);
+  const bargeInRafRef = useRef(null);
+  const speechTurnRef = useRef(0);
+  const waitingRef = useRef(false);
   const activeAudioRef = useRef(null);
   const activeAudioUrlRef = useRef(null);
   const fillerAudioRef = useRef(null);
   const fillerUrlsRef = useRef([]);
   const fillerIndexRef = useRef(0);
   const startListeningRef = useRef(null);
-  const flushOnHangUpRef = useRef(false);
+  const partingTimerRef = useRef(null);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -70,6 +133,13 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     if (fillerAudioRef.current) {
       fillerAudioRef.current.pause();
       fillerAudioRef.current = null;
+    }
+  }, []);
+
+  const stopBargeInDetection = useCallback(() => {
+    if (bargeInRafRef.current) {
+      cancelAnimationFrame(bargeInRafRef.current);
+      bargeInRafRef.current = null;
     }
   }, []);
 
@@ -113,8 +183,61 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     stopBrowserIndonesianSpeech();
   }, [stopFillerAudio]);
 
+  const startBargeInDetection = useCallback(
+    (speechTurn) => {
+      const analyser = analyserRef.current;
+      if (!analyser) return;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let voicedFrames = 0;
+
+      const monitorVoice = () => {
+        if (
+          !isActiveRef.current ||
+          speechTurnRef.current !== speechTurn
+        ) {
+          return;
+        }
+
+        if (isMutedRef.current) {
+          bargeInRafRef.current = requestAnimationFrame(monitorVoice);
+          return;
+        }
+
+        analyser.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i += 1) {
+          const value = (dataArray[i] - 128) / 128;
+          sum += value * value;
+        }
+        const rms = Math.sqrt(sum / dataArray.length) * 100;
+
+        if (rms > 4) {
+          voicedFrames += 1;
+        } else {
+          voicedFrames = 0;
+        }
+
+        if (voicedFrames >= 6) {
+          stopBargeInDetection();
+          speechTurnRef.current += 1;
+          stopPlayback();
+          startListeningRef.current?.();
+          return;
+        }
+
+        bargeInRafRef.current = requestAnimationFrame(monitorVoice);
+      };
+
+      stopBargeInDetection();
+      bargeInRafRef.current = requestAnimationFrame(monitorVoice);
+    },
+    [stopBargeInDetection, stopPlayback]
+  );
+
   const releaseMediaResources = useCallback(() => {
     isActiveRef.current = false;
+    stopBargeInDetection();
     if (vadRafRef.current) {
       cancelAnimationFrame(vadRafRef.current);
       vadRafRef.current = null;
@@ -138,51 +261,90 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       audioCtxRef.current = null;
     }
     analyserRef.current = null;
-  }, [stopPlayback]);
+  }, [stopBargeInDetection, stopPlayback]);
+
+  const beginParting = useCallback(() => {
+    if (isEndingRef.current) return;
+    isEndingRef.current = true;
+    speechTurnRef.current += 1;
+    setCallState('parting');
+    releaseMediaResources();
+    partingTimerRef.current = setTimeout(() => {
+      partingTimerRef.current = null;
+      onClose();
+    }, 1800);
+  }, [onClose, releaseMediaResources]);
 
   const speakAndThen = useCallback(
-    async (text, nextStep) => {
+    async (
+      text,
+      nextStep,
+      { reaction = null, reactionDurationMs = 0 } = {}
+    ) => {
       if (!isActiveRef.current) return;
       if (!speakerOnRef.current) {
         nextStep?.();
         return;
       }
 
+      const speechTurn = speechTurnRef.current + 1;
+      speechTurnRef.current = speechTurn;
+      stopBargeInDetection();
       stopPlayback();
+
+      if (reaction) {
+        setCallState(reaction);
+        if (reactionDurationMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, reactionDurationMs));
+          if (
+            !isActiveRef.current ||
+            speechTurnRef.current !== speechTurn
+          ) {
+            return;
+          }
+        }
+      }
+
       setCallState('speaking');
+      const handleSpeechEnd = () => {
+        if (speechTurnRef.current !== speechTurn) return;
+        stopBargeInDetection();
+        stopPlayback();
+        if (isActiveRef.current) nextStep?.();
+      };
+
       try {
         const controller = await speakIndonesianAuto(text, {
-          onEnd: () => {
-            stopPlayback();
-            if (isActiveRef.current) nextStep?.();
-          },
-          onError: () => {
-            stopPlayback();
-            if (isActiveRef.current) nextStep?.();
-          },
+          onEnd: handleSpeechEnd,
+          onError: handleSpeechEnd,
         });
-        if (!isActiveRef.current) {
+        if (
+          !isActiveRef.current ||
+          speechTurnRef.current !== speechTurn
+        ) {
           controller.cancel();
           return;
         }
         activeAudioRef.current = controller;
+        startBargeInDetection(speechTurn);
       } catch {
-        stopPlayback();
-        if (isActiveRef.current) nextStep?.();
+        handleSpeechEnd();
       }
     },
-    [stopPlayback]
+    [startBargeInDetection, stopBargeInDetection, stopPlayback]
   );
 
   const startListeningTurn = useCallback(() => {
-    if (!isActiveRef.current || !streamRef.current) return;
+    if (!isActiveRef.current || isEndingRef.current || !streamRef.current) return;
 
     if (isMutedRef.current) {
       setCallState('muted');
       return;
     }
 
-    setCallState('listening');
+    const startsWaiting = waitingRef.current;
+    setCallState(startsWaiting ? 'waiting' : 'listening');
+    stopBargeInDetection();
     setCallError('');
 
     const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -199,6 +361,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     recorderRef.current = recorder;
 
     let hasSpoken = false;
+    let isWaiting = startsWaiting;
     let lastVoiceAt = Date.now();
     const startedAt = Date.now();
     let stoppedManually = false;
@@ -216,11 +379,8 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       }
       setMicLevel(0);
 
-      const isFinalFlush = flushOnHangUpRef.current;
-      flushOnHangUpRef.current = false;
-
-      if (!isActiveRef.current && !isFinalFlush) return;
-      if (isMutedRef.current && !isFinalFlush) {
+      if (!isActiveRef.current) return;
+      if (isMutedRef.current) {
         setCallState('muted');
         return;
       }
@@ -240,7 +400,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       }
       try {
         const transcript = await transcribeAudioWithDeepgram(blob);
-        if (!isActiveRef.current && !isFinalFlush) return;
+        if (!isActiveRef.current) return;
 
         if (isActiveRef.current) {
           setLastUserText(transcript);
@@ -251,7 +411,19 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
         if (!isActiveRef.current) return;
 
         setLastBotText(reply);
-        speakAndThen(reply, () => startListeningRef.current?.());
+        const reaction = getTurnReaction(transcript, reply);
+        const shouldCloseAfterReply = isClosingThanks(transcript);
+        speakAndThen(
+          reply,
+          shouldCloseAfterReply
+            ? beginParting
+            : () => startListeningRef.current?.(),
+          {
+            reaction,
+            reactionDurationMs:
+              reaction === 'greeting' ? 1800 : reaction ? 850 : 0,
+          }
+        );
       } catch (err) {
         if (!isActiveRef.current) return;
         const msg = err?.message || '';
@@ -260,7 +432,14 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
           msg.includes('Rekaman suara kosong') ||
           msg.includes('corrupt or unsupported data')
         ) {
-          startListeningRef.current?.();
+          const retryPrompt =
+            'Maaf Kak, suaranya belum terdengar jelas. Boleh diulangi sekali lagi?';
+          setLastBotText(retryPrompt);
+          speakAndThen(
+            retryPrompt,
+            () => startListeningRef.current?.(),
+            { reaction: 'confused', reactionDurationMs: 850 }
+          );
           return;
         }
         setCallError(msg || 'Gagal memproses suara.');
@@ -297,6 +476,11 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
         setMicLevel(normalized);
 
         if (rms > 2.4) {
+          if (isWaiting) {
+            isWaiting = false;
+            waitingRef.current = false;
+            setCallState('listening');
+          }
           hasSpoken = true;
           lastVoiceAt = Date.now();
         }
@@ -305,6 +489,12 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       const now = Date.now();
       const silenceMs = now - lastVoiceAt;
       const totalMs = now - startedAt;
+
+      if (analyser && !hasSpoken && !isWaiting && totalMs > 6000) {
+        isWaiting = true;
+        waitingRef.current = true;
+        setCallState('waiting');
+      }
 
       if ((hasSpoken && silenceMs > 1400) || totalMs > 22000) {
         stoppedManually = hasSpoken;
@@ -316,7 +506,13 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     };
 
     vadRafRef.current = requestAnimationFrame(monitorSilence);
-  }, [onCallTurn, playInstantFiller, speakAndThen]);
+  }, [
+    onCallTurn,
+    beginParting,
+    playInstantFiller,
+    speakAndThen,
+    stopBargeInDetection,
+  ]);
 
   useEffect(() => {
     startListeningRef.current = startListeningTurn;
@@ -339,7 +535,13 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       }
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
         if (cancelled || !isActiveRef.current) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -374,6 +576,9 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
 
         const greeting = `Halo Kak! Aku ${botName}. Ceritain aja tinggi, berat badan, atau acara kamu hari ini ya.`;
         setLastBotText(greeting);
+        setCallState('greeting');
+        await new Promise((resolve) => setTimeout(resolve, 1800));
+        if (cancelled || !isActiveRef.current) return;
         speakAndThen(greeting, () => startListeningRef.current?.());
       } catch {
         if (!cancelled) {
@@ -398,6 +603,10 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
         if (u) URL.revokeObjectURL(u);
       });
       fillerUrlsRef.current = [];
+      if (partingTimerRef.current) {
+        clearTimeout(partingTimerRef.current);
+        partingTimerRef.current = null;
+      }
       releaseMediaResources();
     };
   }, [botName, releaseMediaResources, speakAndThen]);
@@ -413,13 +622,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
     });
   };
 
-  const handleHangUp = () => {
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      flushOnHangUpRef.current = true;
-    }
-    releaseMediaResources();
-    onClose();
-  };
+  const handleHangUp = beginParting;
 
   const statusMeta = {
     connecting: {
@@ -451,6 +654,31 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
       label: `${botName} sedang berbicara...`,
       badge: 'TTS_AURA2',
       ring: 'border-emerald-400',
+    },
+    happy: {
+      label: 'Tala senang mendengar kabar baik...',
+      badge: 'HAPPY',
+      ring: 'border-emerald-400',
+    },
+    apologizing: {
+      label: 'Tala sedang menyiapkan bantuan...',
+      badge: 'APOLOGY',
+      ring: 'border-amber-400',
+    },
+    confused: {
+      label: 'Tala belum menangkap ucapanmu...',
+      badge: 'UNCLEAR',
+      ring: 'border-amber-400',
+    },
+    waiting: {
+      label: 'Tala menunggu kamu bicara...',
+      badge: 'WAITING',
+      ring: 'border-slate-400',
+    },
+    parting: {
+      label: 'Tala berpamitan...',
+      badge: 'ENDING',
+      ring: 'border-rose-400',
     },
     muted: {
       label: 'Mikrofon dimatikan (Mute)',
@@ -501,7 +729,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
             />
             <div className="w-24 h-24 rounded-full bg-white p-2 shadow-xl relative z-10 flex items-center justify-center overflow-hidden">
               <img
-                src={callState === 'speaking' ? talaSenang : talaKedip}
+                src={CALL_STATE_ASSETS[callState] || talaTeleponMendengarkan}
                 alt={botName}
                 className="w-full h-full object-contain"
               />
@@ -562,6 +790,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
           <button
             type="button"
             onClick={handleToggleMute}
+            disabled={callState === 'parting'}
             className={`w-12 h-12 rounded-full flex items-center justify-center border transition cursor-pointer ${
               isMuted
                 ? 'bg-amber-500/20 border-amber-400 text-amber-300'
@@ -575,6 +804,7 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
           <button
             type="button"
             onClick={handleHangUp}
+            disabled={callState === 'parting'}
             className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg shadow-rose-900/40 transition cursor-pointer"
             title="Tutup Telepon"
           >
@@ -586,10 +816,20 @@ function VoiceCallSession({ onClose, botName, onCallTurn }) {
             onClick={() => {
               setSpeakerOn((prev) => {
                 const next = !prev;
-                if (!next) stopPlayback();
+                if (!next) {
+                  if (callState === 'speaking') {
+                    stopBargeInDetection();
+                    speechTurnRef.current += 1;
+                    stopPlayback();
+                    startListeningRef.current?.();
+                  } else {
+                    stopPlayback();
+                  }
+                }
                 return next;
               });
             }}
+            disabled={callState === 'parting'}
             className={`w-12 h-12 rounded-full flex items-center justify-center border transition cursor-pointer ${
               !speakerOn
                 ? 'bg-slate-800 border-white/15 text-slate-400'
